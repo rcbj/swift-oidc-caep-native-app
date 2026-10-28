@@ -7,7 +7,8 @@ An OpenID Connect client library for **native macOS apps** written in Swift, and
 | Path | |
 |---|---|
 | [`Sources/OIDCCAEPClient`](Sources/OIDCCAEPClient) | The library: the `OIDCCAEPClient` product of this Swift package. |
-| [`Demo`](Demo) | A SwiftUI demo app, a package of its own that depends on the library as any app would. |
+| [`Demo`](Demo) | The demo app, a package of its own that depends on the library as any app would: SwiftUI on macOS, GTK 4 on Linux. |
+| [`install`](install) | The Linux AppImage build (`install/appimage.sh`, or `install/appimage-docker.sh` without Swift installed). |
 | [`Documentation`](Documentation) | The integration guide and the API reference. |
 
 ## Install
@@ -49,6 +50,15 @@ cd Demo && swift run CAEPDemo               # or: Demo/scripts/build-app.sh && o
 ```
 
 The demo's settings are in [`Demo/Sources/CAEPDemo/Resources/OIDCConfiguration.plist`](Demo/Sources/CAEPDemo/Resources/OIDCConfiguration.plist). See [Running the demo](docs/demo.md).
+
+On a Linux desktop (GNOME, KDE):
+
+```sh
+install/appimage-docker.sh                 # builds dist/CAEP_Demo-0.1.0-x86_64.AppImage in Docker
+./dist/CAEP_Demo-0.1.0-x86_64.AppImage
+```
+
+[Linux and macOS](docs/linux.md) lists every difference between the two, including TLS trust settings for a provider with a private CA (`TrustedCertificates`, `InsecureSkipTLSVerification`).
 
 ## Develop
 

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The Linux demo's OpenID Connect settings. The redirect URIs are loopback (RFC 8252 §7.3):
+  the app listens on 127.0.0.1:53682 while a sign-in or logout is in progress.
+  To use another provider without rebuilding, copy this file to ~/.config/caep-demo/OIDCConfiguration.plist.
+  The defaults point at iya-sts on https://localhost:8081, client oidc-caep-native-demo
+  (register it with scripts/register-iya-sts-client.mjs).
+-->
+<plist version="1.0">
+<dict>
+	<key>MetadataURL</key>
+	<string>https://localhost:8081/.well-known/openid-configuration</string>
+	<key>ClientID</key>
+	<string>oidc-caep-native-demo</string>
+	<key>Scopes</key>
+	<array>
+		<string>openid</string>
+		<string>profile</string>
+		<string>email</string>
+		<string>offline_access</string>
+		<string>ssf.read</string>
+		<string>ssf.manage</string>
+	</array>
+	<key>RedirectURI</key>
+	<string>http://127.0.0.1:53682/callback</string>
+	<key>PostLogoutRedirectURI</key>
+	<string>http://127.0.0.1:53682/logged-out</string>
+	<key>DPoP</key>
+	<true/>
+	<key>PAR</key>
+	<string>auto</string>
+	<key>CAEPEnabled</key>
+	<true/>
+	<!--
+	  TLS for a provider whose certificate is issued by a private CA (a local iya-sts):
+	  list its root (or the whole chain) here, as PEM or DER files or inline PEM,
+	  relative to this file or absolute (~ allowed):
+	<key>TrustedCertificates</key>
+	<array>
+		<string>~/.config/caep-demo/sts-root.pem</string>
+	</array>
+	  Or, for a local test provider only, turn verification off:
+	<key>InsecureSkipTLSVerification</key>
+	<true/>
+	-->
+</dict>
+</plist>

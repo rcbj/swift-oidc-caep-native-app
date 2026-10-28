@@ -64,7 +64,8 @@ final class DemoModel {
     private(set) var client: OIDCClient?
     private(set) var accounts: AccountManager?
     private var subscription: EventSubscription?
-    private let authenticator: SystemWebAuthenticator
+    private let authenticator: any WebAuthenticator
+    private var transport: (any HTTPTransport)?
 
     // What the views show.
     private(set) var accountList: [Account] = []
@@ -97,7 +98,13 @@ final class DemoModel {
         let saved = UserDefaults.standard.stringArray(forKey: Self.eventsKey)
         selectedEvents = Set(saved ?? CAEP.all)
         log = (UserDefaults.standard.data(forKey: Self.logKey)).flatMap { try? JSONDecoder().decode([LogEntry].self, from: $0) } ?? []
+        // macOS: ASWebAuthenticationSession and a private-use scheme redirect. Linux: the default browser
+        // (xdg-open) and a loopback redirect (RFC 8252 §7.3).
+        #if os(macOS)
         authenticator = SystemWebAuthenticator()
+        #else
+        authenticator = LoopbackWebAuthenticator()
+        #endif
     }
 
     var signedIn: Account? { active?.status == .signedIn ? active : nil }
@@ -110,15 +117,23 @@ final class DemoModel {
             let cfg = try Self.loadConfiguration()
             config = cfg
             stream.status = cfg.caepEnabled ? .waitingForUser : .disabled
-            let keyStore = await preferredDPoPKeyStore(service: "net.rcbj.caepdemo.dpop")
+            // The DPoP key and the tokens go to the platform's secure storage when it has one (macOS: Secure
+            // Enclave or Keychain), and stay in memory otherwise (Linux).
+            #if os(macOS)
+            let keyStore: any DPoPKeyStore = await preferredDPoPKeyStore(service: "net.rcbj.caepdemo.dpop")
             dpopStoreDescription = keyStore is SecureEnclaveKeyStore ? "Secure Enclave (non-extractable)" : "Keychain (software key)"
-            let client = try await cfg.makeClient(dpopKeyStore: keyStore)
+            #else
+            let keyStore: any DPoPKeyStore = MemoryKeyStore()
+            dpopStoreDescription = "memory (a new key each launch)"
+            #endif
+            let transport = cfg.makeTransport()
+            self.transport = transport
+            let client = try await cfg.makeClient(dpopKeyStore: keyStore, transport: transport)
             self.client = client
 
-            // Tokens in the Keychain: the platform's secure storage. The hooks tie the app's one CAEP stream
-            // to its active account.
+            // The hooks tie the app's one CAEP stream to its active account.
             let options = AccountManagerOptions(
-                store: KeychainTokenStore(service: "net.rcbj.caepdemo.tokens"),
+                store: defaultTokenStore(service: "net.rcbj.caepdemo.tokens"),
                 storeKey: "accounts:\(client.issuer):\(client.clientID)",
                 onActivate: { [weak self] account, access in
                     await self?.rememberProfile(account, access)
@@ -138,16 +153,30 @@ final class DemoModel {
         }
     }
 
-    /// `OIDCConfiguration.plist`: in the app bundle when built with scripts/build-app.sh, else the package's
-    /// resources (`swift run`). `OIDC_CONFIG=/path/to/file.plist` overrides both.
+    /// The configuration, from the first of:
+    /// - `OIDC_CONFIG=/path/to/file.plist`;
+    /// - Linux: `~/.config/caep-demo/OIDCConfiguration.plist`, to point the demo at another provider without rebuilding;
+    /// - the app bundle (macOS, built with scripts/build-app.sh);
+    /// - the package's resources: `OIDCConfiguration.plist` on macOS, `OIDCConfiguration-Linux.plist` (a loopback
+    ///   redirect URI) on Linux.
     private static func loadConfiguration() throws -> OIDCAppConfiguration {
-        if let path = ProcessInfo.processInfo.environment["OIDC_CONFIG"], !path.isEmpty {
+        let environment = ProcessInfo.processInfo.environment
+        if let path = environment["OIDC_CONFIG"], !path.isEmpty {
             return try OIDCAppConfiguration.load(contentsOf: URL(fileURLWithPath: path))
         }
-        if Bundle.main.url(forResource: OIDCAppConfiguration.defaultResourceName, withExtension: "plist") != nil {
-            return try OIDCAppConfiguration.load(bundle: .main)
+        #if os(macOS)
+        let resource = OIDCAppConfiguration.defaultResourceName
+        #else
+        let resource = "OIDCConfiguration-Linux"
+        let home = environment["XDG_CONFIG_HOME"].map { URL(fileURLWithPath: $0) }
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config")
+        let user = home.appendingPathComponent("caep-demo/OIDCConfiguration.plist")
+        if FileManager.default.fileExists(atPath: user.path) { return try OIDCAppConfiguration.load(contentsOf: user) }
+        #endif
+        if Bundle.main.url(forResource: resource, withExtension: "plist") != nil {
+            return try OIDCAppConfiguration.load(bundle: .main, resource: resource)
         }
-        return try OIDCAppConfiguration.load(bundle: .module)
+        return try OIDCAppConfiguration.load(bundle: .module, resource: resource)
     }
 
     private func reload() async {
@@ -212,7 +241,7 @@ final class DemoModel {
         await go("sign-in") { try await $0.reauthenticate(key, using: $1, o) }
     }
 
-    private func go(_ what: String, _ run: (AccountManager, SystemWebAuthenticator) async throws -> SignInResult) async {
+    private func go(_ what: String, _ run: (AccountManager, any WebAuthenticator) async throws -> SignInResult) async {
         guard let accounts else { return }
         error = nil
         do {
@@ -450,7 +479,8 @@ final class DemoModel {
             eventsRequested: CAEP.all.filter(selectedEvents.contains),
             streamID: streamID,
             description: "swift-oidc-caep-native-app demo (\(label(account)))",
-            pollInterval: 5))
+            pollInterval: 5,
+            transport: transport ?? URLSessionTransport()))
         installHandlers(r, key: account.key, access: access)
         return r
     }

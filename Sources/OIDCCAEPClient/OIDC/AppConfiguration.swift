@@ -33,6 +33,9 @@ import Foundation
 /// | `PrefersEphemeralWebBrowserSession` | bool | no | No shared browser cookies at sign-in (default `false`) |
 /// | `SSFTransmitterIssuer` | string | no | CAEP transmitter, if not the provider's issuer |
 /// | `CAEPEnabled` | bool | no | Receive CAEP events (default `true`) |
+/// | `TrustedCertificates` | array | no | PEM or DER files (or inline PEM) to trust for TLS: trust anchors or whole chains. Relative paths are resolved against the plist's folder |
+/// | `TrustSystemRoots` | bool | no | Whether the system's roots still count beside `TrustedCertificates` (default `true`) |
+/// | `InsecureSkipTLSVerification` | bool | no | Accept any TLS certificate from the provider. **Local test providers only** (default `false`) |
 public struct OIDCAppConfiguration: Sendable, Equatable {
     public var metadataURL: URL
     public var clientID: String
@@ -47,6 +50,10 @@ public struct OIDCAppConfiguration: Sendable, Equatable {
     public var prefersEphemeralWebBrowserSession: Bool
     public var ssfTransmitterIssuer: String?
     public var caepEnabled: Bool
+    /// Accept any TLS certificate from the provider and the transmitter. Local test providers only.
+    public var insecureSkipTLSVerification: Bool
+    /// Extra certificates to trust for TLS (`TrustedCertificates`, `TrustSystemRoots`).
+    public var tlsTrust: TLSTrust?
 
     /// The scope string (`openid profile email`), or nil for the client's default.
     public var scope: String? { scopes.isEmpty ? nil : scopes.joined(separator: " ") }
@@ -57,7 +64,7 @@ public struct OIDCAppConfiguration: Sendable, Equatable {
     public init(metadataURL: URL, clientID: String, scopes: [String] = [], redirectURI: URL, postLogoutRedirectURI: URL? = nil,
                 resource: [String] = [], dpop: Bool = true, par: PARMode = .auto, idTokenSignedResponseAlg: String? = nil,
                 acrValues: String? = nil, prefersEphemeralWebBrowserSession: Bool = false, ssfTransmitterIssuer: String? = nil,
-                caepEnabled: Bool = true) {
+                caepEnabled: Bool = true, insecureSkipTLSVerification: Bool = false, tlsTrust: TLSTrust? = nil) {
         self.metadataURL = metadataURL
         self.clientID = clientID
         self.scopes = scopes
@@ -71,6 +78,8 @@ public struct OIDCAppConfiguration: Sendable, Equatable {
         self.prefersEphemeralWebBrowserSession = prefersEphemeralWebBrowserSession
         self.ssfTransmitterIssuer = ssfTransmitterIssuer
         self.caepEnabled = caepEnabled
+        self.insecureSkipTLSVerification = insecureSkipTLSVerification
+        self.tlsTrust = tlsTrust
     }
 
     /// Reads `<resource>.plist` from `bundle`, or else the `<resource>` dictionary in its `Info.plist`.
@@ -79,26 +88,27 @@ public struct OIDCAppConfiguration: Sendable, Equatable {
             return try load(contentsOf: url)
         }
         if let dict = bundle.object(forInfoDictionaryKey: resource) as? [String: Any] {
-            return try OIDCAppConfiguration(dictionary: dict)
+            return try OIDCAppConfiguration(dictionary: dict, baseURL: bundle.resourceURL)
         }
         throw OIDCError.usage("No \(resource).plist in \(bundle.bundleURL.lastPathComponent), and no \(resource) key in its Info.plist")
     }
 
     /// Reads a property list file (XML or binary).
     public static func load(contentsOf url: URL) throws -> OIDCAppConfiguration {
-        try OIDCAppConfiguration(propertyList: try Data(contentsOf: url), source: url.lastPathComponent)
+        try OIDCAppConfiguration(propertyList: try Data(contentsOf: url), source: url.lastPathComponent, baseURL: url.deletingLastPathComponent())
     }
 
     /// Parses property list data.
-    public init(propertyList data: Data, source: String = "the configuration") throws {
+    /// - Parameter baseURL: the folder relative `TrustedCertificates` paths are resolved against.
+    public init(propertyList data: Data, source: String = "the configuration", baseURL: URL? = nil) throws {
         guard let dict = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
             throw OIDCError.usage("\(source) is not a dictionary")
         }
-        try self.init(dictionary: dict)
+        try self.init(dictionary: dict, baseURL: baseURL)
     }
 
     /// From a dictionary with the keys in the table above.
-    public init(dictionary d: [String: Any]) throws {
+    public init(dictionary d: [String: Any], baseURL: URL? = nil) throws {
         func string(_ key: String) -> String? {
             (d[key] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         }
@@ -129,13 +139,41 @@ public struct OIDCAppConfiguration: Sendable, Equatable {
                   postLogoutRedirectURI: try url("PostLogoutRedirectURI", required: false), resource: list("Resource"),
                   dpop: d["DPoP"] as? Bool ?? true, par: par ?? .auto, idTokenSignedResponseAlg: string("IDTokenSignedResponseAlg"),
                   acrValues: string("ACRValues"), prefersEphemeralWebBrowserSession: d["PrefersEphemeralWebBrowserSession"] as? Bool ?? false,
-                  ssfTransmitterIssuer: string("SSFTransmitterIssuer"), caepEnabled: d["CAEPEnabled"] as? Bool ?? true)
+                  ssfTransmitterIssuer: string("SSFTransmitterIssuer"), caepEnabled: d["CAEPEnabled"] as? Bool ?? true,
+                  insecureSkipTLSVerification: d["InsecureSkipTLSVerification"] as? Bool ?? false,
+                  tlsTrust: try Self.trust(d, baseURL: baseURL))
+    }
+
+    /// `TrustedCertificates`: file paths (absolute, `~/…`, or relative to `baseURL`) or inline PEM text.
+    private static func trust(_ d: [String: Any], baseURL: URL?) throws -> TLSTrust? {
+        let raw: [String] = (d["TrustedCertificates"] as? [Any])?.compactMap { $0 as? String } ?? (d["TrustedCertificates"] as? String).map { [$0] } ?? []
+        let entries = raw.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        guard !entries.isEmpty else { return nil }
+        let data = try entries.map { entry -> Data in
+            if entry.contains("-----BEGIN CERTIFICATE-----") { return Data(entry.utf8) }
+            let expanded = (entry as NSString).expandingTildeInPath
+            let url = expanded.hasPrefix("/") ? URL(fileURLWithPath: expanded)
+                : (baseURL ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)).appendingPathComponent(expanded)
+            do { return try Data(contentsOf: url) } catch {
+                throw OIDCError.usage("Could not read the trusted certificate file \(url.path): \(error.localizedDescription)")
+            }
+        }
+        return try TLSTrust(pemOrDER: data, includeSystemRoots: d["TrustSystemRoots"] as? Bool ?? true)
     }
 
     /// Client options from this configuration. Pass the DPoP key store to use (e.g. ``SecureEnclaveKeyStore``);
     /// it is ignored when `DPoP` is false.
-    public func clientOptions(dpopKeyStore: any DPoPKeyStore = MemoryKeyStore(), transport: any HTTPTransport = URLSessionTransport()) -> OIDCClientOptions {
-        OIDCClientOptions(clientID: clientID, redirectURI: redirectURI, postLogoutRedirectURI: postLogoutRedirectURI, scope: scope,
+    /// The HTTP transport this configuration calls for: certificate verification off when
+    /// `InsecureSkipTLSVerification` is set, or with `TrustedCertificates` added to the trusted roots. Pass the same transport to an ``SSFReceiverConfiguration``.
+    public func makeTransport() -> any HTTPTransport {
+        if insecureSkipTLSVerification { return URLSessionTransport(insecureSkipTLSVerification: true) }
+        if let tlsTrust { return URLSessionTransport(trust: tlsTrust) }
+        return URLSessionTransport()
+    }
+
+    public func clientOptions(dpopKeyStore: any DPoPKeyStore = MemoryKeyStore(), transport: (any HTTPTransport)? = nil) -> OIDCClientOptions {
+        let transport = transport ?? makeTransport()
+        return OIDCClientOptions(clientID: clientID, redirectURI: redirectURI, postLogoutRedirectURI: postLogoutRedirectURI, scope: scope,
                           resource: resource, idTokenSignedResponseAlg: idTokenSignedResponseAlg ?? "RS256", par: par,
                           dpop: dpop ? DPoPOptions(keyStore: dpopKeyStore) : nil, transport: transport)
     }
@@ -146,7 +184,8 @@ public struct OIDCAppConfiguration: Sendable, Equatable {
     ///
     /// `ACRValues`, `SSFTransmitterIssuer` and `CAEPEnabled` are the app's to apply (to its requests and its
     /// ``SSFReceiver``); `PrefersEphemeralWebBrowserSession` is applied by `makeAuthenticator()`.
-    public func makeClient(dpopKeyStore: (any DPoPKeyStore)? = nil, transport: any HTTPTransport = URLSessionTransport()) async throws -> OIDCClient {
+    public func makeClient(dpopKeyStore: (any DPoPKeyStore)? = nil, transport: (any HTTPTransport)? = nil) async throws -> OIDCClient {
+        let transport = transport ?? makeTransport()
         var keyStore: any DPoPKeyStore = MemoryKeyStore()
         if let dpopKeyStore {
             keyStore = dpopKeyStore

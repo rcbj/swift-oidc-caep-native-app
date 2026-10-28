@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 Iya CyberSecurity Solutions, LLC
+# SPDX-License-Identifier: MIT
+#
+# Builds the Linux (GTK 4) demo as an x86_64 AppImage with install/appimage.sh, the arrangement
+# ../oid4vc-wallet uses, and uploads it as an artifact.
+name: AppImage
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  appimage:
+    name: Build AppImage
+    runs-on: ubuntu-latest
+    # Ubuntu 22.04 pins the glibc the AppImage is linked against, so the
+    # artifact runs on Ubuntu 22.04 and newer. The official Swift image for it
+    # carries the toolchain.
+    container: swift:6.1-jammy
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y libgtk-4-dev curl ca-certificates file binutils
+      - name: Build the AppImage
+        run: sh ./install/appimage.sh
+      - name: Upload the AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: caep-demo-x86_64
+          path: dist/*.AppImage
+          if-no-files-found: error

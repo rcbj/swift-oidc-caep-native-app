@@ -12,7 +12,7 @@ An OpenID Connect client library for **native macOS apps**, written in Swift. It
 - **Several accounts:** several people signed in to one app, with one active account.
 - **CAEP:** subscribing to the identity provider's Shared Signals stream, with one handler per CAEP event and a hook for your own logic.
 
-The library product is `OIDCCAEPClient`. It needs macOS 13 or later and Swift 5.9 or later, and its only dependency is Apple's [swift-crypto](https://github.com/apple/swift-crypto). It also builds and runs its tests on Linux, without the Keychain, Secure Enclave and browser parts.
+The library product is `OIDCCAEPClient`. It needs macOS 13 or later and Swift 5.9 or later, and its only dependency is Apple's [swift-crypto](https://github.com/apple/swift-crypto). It also runs on Linux desktops (GNOME, KDE): sign-in goes through the default browser and a loopback redirect, and tokens stay in memory. The demo has a GTK version, packaged as an AppImage. See [Linux and macOS](linux.md) for every difference.
 
 ## Install
 

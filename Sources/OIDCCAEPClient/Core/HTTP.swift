@@ -52,6 +52,12 @@ public protocol HTTPTransport: Sendable {
 
 /// ``HTTPTransport`` over `URLSession`, with redirects refused, no cookies, and no caching.
 public final class URLSessionTransport: NSObject, HTTPTransport, URLSessionTaskDelegate, @unchecked Sendable {
+    /// Accept any TLS server certificate. FOR LOCAL TEST PROVIDERS ONLY (a self-signed iya-sts): anybody who
+    /// can intercept the connection can then impersonate the identity provider, its keys and its CAEP signals.
+    public let insecureSkipTLSVerification: Bool
+    /// Extra certificates (trust anchors or whole chains) to trust for TLS, with or without the system roots.
+    public let trust: TLSTrust?
+
     private lazy var session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpShouldSetCookies = false
@@ -61,9 +67,53 @@ public final class URLSessionTransport: NSObject, HTTPTransport, URLSessionTaskD
         return URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
     }()
 
-    public override init() { super.init() }
+    public override init() {
+        insecureSkipTLSVerification = false
+        trust = nil
+        super.init()
+    }
+
+    /// - Parameter trust: certificates to trust besides (or instead of) the system's roots. On Linux,
+    ///   URLSession cannot be given extra CAs, so these requests are made with the system's `curl` and a CA
+    ///   bundle holding them.
+    public init(trust: TLSTrust) {
+        insecureSkipTLSVerification = false
+        self.trust = trust
+        super.init()
+    }
+
+    /// - Parameter insecureSkipTLSVerification: see ``insecureSkipTLSVerification``. On Linux, URLSession
+    ///   cannot skip certificate verification, so these requests are made with the system's `curl -k` instead.
+    public init(insecureSkipTLSVerification: Bool) {
+        self.insecureSkipTLSVerification = insecureSkipTLSVerification
+        trust = nil
+        super.init()
+        if insecureSkipTLSVerification {
+            OIDCLog.log(.warning, "TLS certificate verification is OFF (InsecureSkipTLSVerification). Use this only with a local test identity provider.")
+        }
+    }
+
+    #if canImport(Darwin)
+    public func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
+                           completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              let serverTrust = challenge.protectionSpace.serverTrust, insecureSkipTLSVerification || trust != nil else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+        if insecureSkipTLSVerification || trust?.evaluate(serverTrust) == true {
+            completionHandler(.useCredential, URLCredential(trust: serverTrust))
+        } else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+        }
+    }
+    #endif
 
     public func send(_ request: HTTPRequest, timeout: TimeInterval) async throws -> HTTPResponse {
+        #if !canImport(Darwin)
+        if insecureSkipTLSVerification { return try await CurlTransport.send(request, timeout: timeout, tls: .insecure) }
+        if let trust { return try await CurlTransport.send(request, timeout: timeout, tls: .caFile(try trust.caBundleFile())) }
+        #endif
         var r = URLRequest(url: request.url, timeoutInterval: timeout)
         r.httpMethod = request.method
         for (name, value) in request.headers { r.setValue(value, forHTTPHeaderField: name) }
@@ -90,6 +140,73 @@ public final class URLSessionTransport: NSObject, HTTPTransport, URLSessionTaskD
         completionHandler(nil)
     }
 }
+
+#if !canImport(Darwin)
+/// Linux only, for ``URLSessionTransport/insecureSkipTLSVerification`` and ``URLSessionTransport/trust``:
+/// the request made by the system's `curl`, since URLSession on Linux can neither skip certificate
+/// verification nor take extra CAs. Headers (which carry tokens) go through a file readable by this user only,
+/// and the body through stdin, never the command line.
+enum CurlTransport {
+    enum TLS { case insecure, caFile(URL) }
+
+    static func send(_ request: HTTPRequest, timeout: TimeInterval, tls: TLS) async throws -> HTTPResponse {
+        try await withCheckedThrowingContinuation { continuation in
+            Thread.detachNewThread {
+                do { continuation.resume(returning: try run(request, timeout: timeout, tls: tls)) } catch { continuation.resume(throwing: error) }
+            }
+        }
+    }
+
+    private static func run(_ request: HTTPRequest, timeout: TimeInterval, tls: TLS) throws -> HTTPResponse {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("oidc-curl-\(UUID().uuidString)")
+        try fm.createDirectory(at: dir, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        defer { try? fm.removeItem(at: dir) }
+        let requestHeaders = dir.appendingPathComponent("request-headers")
+        let responseHeaders = dir.appendingPathComponent("response-headers")
+        let responseBody = dir.appendingPathComponent("response-body")
+        var lines = request.headers.map { "\($0.key): \($0.value)" }
+        lines.append("Expect:")
+        guard fm.createFile(atPath: requestHeaders.path, contents: Data(lines.joined(separator: "\n").utf8), attributes: [.posixPermissions: 0o600]) else {
+            throw URLError(.cannotCreateFile)
+        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        var args = ["curl", "--silent", "--show-error", "--http1.1", "--max-time", String(Int(timeout.rounded(.up))),
+                    "--request", request.method, "--header", "@\(requestHeaders.path)",
+                    "--dump-header", responseHeaders.path, "--output", responseBody.path, "--write-out", "%{http_code}"]
+        switch tls {
+        case .insecure: args.append("--insecure")
+        case .caFile(let file): args += ["--cacert", file.path]
+        }
+        if request.body != nil { args += ["--data-binary", "@-"] }
+        args.append(request.url.absoluteString)
+        process.arguments = args
+        let stdin = Pipe(), stdout = Pipe(), stderr = Pipe()
+        process.standardInput = stdin
+        process.standardOutput = stdout
+        process.standardError = stderr
+        try process.run()
+        if let body = request.body { stdin.fileHandleForWriting.write(body) }
+        try stdin.fileHandleForWriting.close()
+        let status = String(decoding: stdout.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        let errorText = String(decoding: stderr.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        process.waitUntilExit()
+        guard process.terminationStatus == 0, let code = Int(status.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            throw URLError(.cannotConnectToHost, userInfo: [NSLocalizedDescriptionKey: "curl: \(errorText.trimmingCharacters(in: .whitespacesAndNewlines))"])
+        }
+        // The last header block is the final response's (after any 1xx).
+        let headerText = (try? String(contentsOf: responseHeaders, encoding: .utf8)) ?? ""
+        let block = headerText.components(separatedBy: "\r\n\r\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.last ?? ""
+        var headers: [String: String] = [:]
+        for line in block.components(separatedBy: "\r\n").dropFirst() {
+            guard let colon = line.firstIndex(of: ":") else { continue }
+            headers[line[..<colon].lowercased()] = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
+        }
+        return HTTPResponse(url: request.url, status: code, headers: headers, body: (try? Data(contentsOf: responseBody)) ?? Data())
+    }
+}
+#endif
 
 /// What every request the library makes shares: the transport and the timeout.
 struct HTTPClient: Sendable {

@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Iya CyberSecurity Solutions, LLC
 // SPDX-License-Identifier: MIT
 
+// The macOS front end (SwiftUI). The Linux one is in Linux/.
+#if os(macOS)
+
 import AppKit
 import SwiftUI
 
@@ -29,3 +32,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
+#endif
