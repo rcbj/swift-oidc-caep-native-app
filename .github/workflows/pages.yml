@@ -110,11 +110,16 @@ jobs:
           fi
           echo "DocC: $(find _site_api/api -name '*.html' | wc -l) page(s)."
 
+      # DocC names some files after operators (`!=(_:_:).json`), and an artifact may not contain a
+      # colon in a path, so the reference travels as one tarball.
+      - name: Pack the API reference
+        run: tar -czf docc-api.tar.gz _site_api
+
       - name: Upload the API reference
         uses: actions/upload-artifact@v4
         with:
           name: docc-api
-          path: _site_api
+          path: docc-api.tar.gz
           if-no-files-found: error
           retention-days: 1
 
@@ -188,7 +193,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: docc-api
-          path: _site_api
+          path: .
+
+      - name: Unpack the API reference
+        run: tar -xzf docc-api.tar.gz
 
       - name: Add the API reference to the site
         run: |
