@@ -19,6 +19,8 @@ public final class LoopbackWebAuthenticator: WebAuthenticator, @unchecked Sendab
     /// How long to wait for the browser to come back (seconds).
     public let timeout: TimeInterval
     private let openBrowser: @Sendable (URL) throws -> Void
+    /// The listener waiting on each port, in this process.
+    private static let active = Locked<[Int: LoopbackListener]>([:])
 
     /// - Parameters:
     ///   - openBrowser: Opens a URL in the person's browser. Default: ``openInSystemBrowser(_:)``.
@@ -55,7 +57,13 @@ public final class LoopbackWebAuthenticator: WebAuthenticator, @unchecked Sendab
         guard callback.scheme?.lowercased() == "http", isLoopback(callback), let port = callback.port else {
             throw OIDCError.usage("LoopbackWebAuthenticator needs a loopback redirect URI with a port, such as http://127.0.0.1:53682/callback, not \(callback.absoluteString)")
         }
-        let listener = try LoopbackListener(host: callback.host ?? "127.0.0.1", port: port)
+        // A sign-in that never came back (the provider showed an error and never redirected, the tab was
+        // closed) still holds the port until it times out. A new one on the same port replaces it: the old one
+        // ends as cancelled, and its socket is closed before this one binds.
+        let replaced = Self.active.withLock { $0.removeValue(forKey: port) }
+        replaced?.cancel()
+        let listener = try LoopbackListener.bindRetrying(host: callback.host ?? "127.0.0.1", port: port, retryFor: replaced == nil ? 0 : 2)
+        Self.active.withLock { $0[port] = listener }
         do {
             try openBrowser(url)
         } catch {
@@ -67,7 +75,10 @@ public final class LoopbackWebAuthenticator: WebAuthenticator, @unchecked Sendab
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
                 Thread.detachNewThread {
-                    defer { listener.close() }
+                    defer {
+                        listener.close()
+                        Self.active.withLock { if $0[port] === listener { $0[port] = nil } }
+                    }
                     do {
                         let query = try listener.waitForRequest(path: path, deadline: deadline)
                         var c = URLComponents(url: callback, resolvingAgainstBaseURL: false)!
@@ -122,7 +133,22 @@ private final class LoopbackListener: @unchecked Sendable {
         }
     }
 
-    func cancel() { cancelled.withLock { $0 = true } }
+    /// Stops waiting, and frees the port: shutdown() wakes the thread polling the socket, which then closes it.
+    func cancel() {
+        cancelled.withLock { $0 = true }
+        if !closed.current { _ = shutdown(fd, Int32(SHUT_RDWR)) }
+    }
+
+    /// Binds, retrying for up to `retryFor` seconds while the port is still held by a listener being replaced.
+    static func bindRetrying(host: String, port: Int, retryFor: TimeInterval) throws -> LoopbackListener {
+        let deadline = Date().addingTimeInterval(retryFor)
+        while true {
+            do { return try LoopbackListener(host: host, port: port) } catch {
+                guard Date() < deadline else { throw error }
+                usleep(50_000)
+            }
+        }
+    }
 
     func close() {
         let first = closed.withLock { c -> Bool in defer { c = true }; return !c }

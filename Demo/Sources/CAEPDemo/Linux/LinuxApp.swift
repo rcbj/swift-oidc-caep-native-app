@@ -22,6 +22,9 @@ struct CAEPDemoLinuxApp: App {
 
     /// `--version` prints the version and exits, without opening a window (the AppImage's smoke test).
     init() {
+        // A light theme, whatever the desktop's: the demo's colours below are chosen for it.
+        // GTK_THEME set in the environment wins.
+        if ProcessInfo.processInfo.environment["GTK_THEME"] == nil { setenv("GTK_THEME", "Adwaita", 1) }
         if CommandLine.arguments.contains("--version") {
             print("CAEP Demo \(demoVersion) (OIDCCAEPClient, GTK)")
             exit(0)
@@ -38,6 +41,35 @@ struct CAEPDemoLinuxApp: App {
 
 let demoVersion = "0.1"
 
+/// The window's colours: a pale page, white bordered cards with tinted title bars, field names in blue.
+enum Palette {
+    static let page = Color(red: 0.94, green: 0.95, blue: 0.97)
+    static let card = Color(red: 1, green: 1, blue: 1)
+    static let border = Color(red: 0.72, green: 0.75, blue: 0.80)
+    static let cardTitle = Color(red: 0.86, green: 0.90, blue: 0.97)
+    static let titleText = Color(red: 0.08, green: 0.20, blue: 0.42)
+    static let field = Color(red: 0.12, green: 0.32, blue: 0.62)
+    static let value = Color(red: 0.10, green: 0.10, blue: 0.12)
+    static let muted = Color(red: 0.38, green: 0.40, blue: 0.45)
+    static let code = Color(red: 0.96, green: 0.97, blue: 0.98)
+    static let ok = Color(red: 0.10, green: 0.50, blue: 0.20)
+    static let warn = Color(red: 0.70, green: 0.40, blue: 0.00)
+    static let bad = Color(red: 0.75, green: 0.12, blue: 0.12)
+    static let infoFill = Color(red: 0.90, green: 0.94, blue: 1.00)
+    static let warnFill = Color(red: 1.00, green: 0.95, blue: 0.86)
+    static let badFill = Color(red: 1.00, green: 0.91, blue: 0.91)
+}
+
+extension View {
+    /// The view on a filled, bordered, rounded box.
+    func boxed(fill: Color, stroke: Color = Palette.border, radius: Double = 8) -> some View {
+        background {
+            RoundedRectangle(cornerRadius: radius).fill(fill)
+            RoundedRectangle(cornerRadius: radius).stroke(stroke)
+        }
+    }
+}
+
 /// The window. SwiftCrossUI redraws on its own state, not on Swift Observation, so `tick` is bumped every
 /// second (the token countdowns need that anyway) and after every action; each redraw reads the model afresh.
 struct DemoWindow: View {
@@ -49,19 +81,29 @@ struct DemoWindow: View {
     var model: DemoModel { Shared.model }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("").frame(width: 0, height: 0).padding(tick < 0 ? 1 : 0)  // reads tick, so every tick redraws
             topBar
             banners
             HStack(spacing: 6) {
                 Toggle("Identity", isOn: tabBinding("identity")).toggleStyle(.button)
                 Toggle("CAEP events", isOn: tabBinding("caep")).toggleStyle(.button)
+                Spacer()
+                Text(tab == "identity" ? "Sign-in, session and tokens" : "The active account's CAEP stream and events")
+                    .foregroundColor(Palette.muted)
             }
+            .padding(6)
+            .boxed(fill: Palette.cardTitle)
             ScrollView {
-                if tab == "identity" { identity } else { caepTab }
+                VStack(alignment: .leading, spacing: 0) {
+                    if tab == "identity" { identity } else { caepTab }
+                }
+                .padding(12)
             }
+            .boxed(fill: Palette.page)
         }
         .padding(12)
+        .background(Palette.page)
         .onAppear {
             guard !started else { return }
             started = true
@@ -91,11 +133,13 @@ struct DemoWindow: View {
 
     @ViewBuilder var topBar: some View {
         HStack(spacing: 10) {
-            Text("◆ CAEP Demo").font(.title3).bold()
-            Text("OIDCCAEPClient · native public client (GTK)").font(.caption).foregroundColor(.gray)
+            Text("◆ CAEP Demo").font(.title3).bold().foregroundColor(Palette.titleText)
+            Text("OIDCCAEPClient · native public client (GTK)").font(.caption).foregroundColor(Palette.muted)
             Spacer()
             accountMenu
         }
+        .padding(8)
+        .boxed(fill: Palette.card)
     }
 
     @ViewBuilder var accountMenu: some View {
@@ -168,13 +212,18 @@ struct DemoWindow: View {
     }
 
     private func banner(_ text: String, _ color: Color) -> some View {
-        Text(text).foregroundColor(color).textSelectionEnabled()
+        let (fill, ink): (Color, Color) = color == .red ? (Palette.badFill, Palette.bad)
+            : color == .orange ? (Palette.warnFill, Palette.warn) : (Palette.infoFill, Palette.titleText)
+        return Text(text).foregroundColor(ink).textSelectionEnabled()
+            .padding(8)
+            .frame(maxWidth: Double.infinity, alignment: .leading)
+            .boxed(fill: fill, stroke: ink)
     }
 
     // MARK: - Identity tab
 
     @ViewBuilder var identity: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             card(heroTitle) { hero }
             card("Protections in effect") { protections }
             card(model.signedIn.map { "Session · \(model.label($0))" } ?? "Session") { session }
@@ -184,11 +233,40 @@ struct DemoWindow: View {
     }
 
     private func card<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.headline)
-            content()
-            Divider()
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title).font(.headline).foregroundColor(Palette.titleText)
+                .padding(8)
+                .frame(maxWidth: Double.infinity, alignment: .leading)
+                .background(Palette.cardTitle)
+            VStack(alignment: .leading, spacing: 8) { content() }
+                .padding(10)
+                .frame(maxWidth: Double.infinity, alignment: .leading)
         }
+        .boxed(fill: Palette.card)
+    }
+
+    /// One field: its name (blue, bold) and its value (dark, wrapping, selectable).
+    private func field(_ name: String, _ value: String) -> some View {
+        HStack(spacing: 12) {
+            Text(name).bold().foregroundColor(Palette.field).frame(width: 190, alignment: .leading)
+            Text(value).foregroundColor(Palette.value).textSelectionEnabled()
+                .frame(maxWidth: Double.infinity, alignment: .leading)
+        }
+    }
+
+    /// Long text (tokens, JSON) in a bordered box that scrolls.
+    private func scrollBox(_ text: String, height: Int = 160) -> some View {
+        ScrollView {
+            Text(text).font(.caption).fontDesign(.monospaced).foregroundColor(Palette.value).textSelectionEnabled()
+                .padding(8)
+                .frame(maxWidth: Double.infinity, alignment: .leading)
+        }
+        .frame(height: height)
+        .boxed(fill: Palette.code, radius: 4)
+    }
+
+    private func note(_ text: String) -> some View {
+        Text(text).foregroundColor(Palette.muted)
     }
 
     private var heroTitle: String {
@@ -204,9 +282,9 @@ struct DemoWindow: View {
 
     @ViewBuilder var hero: some View {
         if model.client == nil {
-            Text(model.error == nil ? "Loading the OIDC configuration." : "The identity provider could not be reached.").foregroundColor(.gray)
+            note(model.error == nil ? "Loading the OIDC configuration." : "The identity provider could not be reached.")
         } else {
-            Text(heroText).foregroundColor(.gray)
+            Text(heroText).foregroundColor(Palette.value)
             HStack {
                 if let cur = model.active, cur.status == .tokensMissing {
                     Button("Continue as \(model.label(cur))") { run { await model.resume(cur.key) } }
@@ -239,11 +317,9 @@ struct DemoWindow: View {
     @ViewBuilder var protections: some View {
         if let client = model.client {
             let f = client.securityFeatures
-            ForEach(protectionItems(f), id: \.0) { item in
-                Text("✔ \(item.0): \(item.1)").font(.callout)
-            }
+            ForEach(protectionItems(f), id: \.0) { item in field("✔ \(item.0)", item.1) }
         } else {
-            Text("The identity provider has not been reached yet.").foregroundColor(.gray)
+            note("The identity provider has not been reached yet.")
         }
     }
 
@@ -270,13 +346,11 @@ struct DemoWindow: View {
     @ViewBuilder var session: some View {
         if let me = model.signedIn {
             let stepUp = model.state(me.key).stepUp
-            Text(stepUp != nil ? "Step-up required" : "Active").foregroundColor(stepUp != nil ? .orange : .green)
+            Text(stepUp != nil ? "● Step-up required" : "● Active").bold().foregroundColor(stepUp != nil ? Palette.warn : Palette.ok)
             let claims = model.currentTokens?.claims ?? me.claims
-            ForEach(sessionRows(claims), id: \.0) { row in
-                Text("\(row.0): \(row.1)").font(.callout).textSelectionEnabled()
-            }
+            ForEach(sessionRows(claims), id: \.0) { row in field(row.0, row.1) }
         } else {
-            Text("No one is signed in.").foregroundColor(.gray)
+            note("No one is signed in.")
         }
     }
 
@@ -304,7 +378,8 @@ struct DemoWindow: View {
             Button("Force refresh") { run { await model.forceRefresh() } }.frame(minWidth: 130).disabled(me == nil)
         }
         if let out = model.userinfoOutput {
-            Text(out).font(.caption).textSelectionEnabled()
+            Text("UserInfo response").bold().foregroundColor(Palette.field)
+            scrollBox(out, height: 140)
         }
     }
 
@@ -322,9 +397,11 @@ struct DemoWindow: View {
 
     private func stat(_ value: String, _ caption: String) -> some View {
         VStack(alignment: .leading) {
-            Text(value).font(.title3).bold()
-            Text(caption).font(.caption).foregroundColor(.gray)
+            Text(value).font(.title3).bold().foregroundColor(Palette.value)
+            Text(caption).font(.caption).foregroundColor(Palette.field)
         }
+        .padding(8)
+        .boxed(fill: Palette.code, radius: 6)
     }
 
     @ViewBuilder var tokens: some View {
@@ -339,8 +416,7 @@ struct DemoWindow: View {
             if let id = ts.idToken { tokenText("ID token", id) }
             if let rt = ts.refreshToken { tokenText("Refresh token", rt) }
         } else {
-            Text(tokenView == "current" ? "No tokens until someone is signed in." : "The tokens from this session's last sign-in appear here.")
-                .foregroundColor(.gray)
+            note(tokenView == "current" ? "No tokens until someone is signed in." : "The tokens from this session's last sign-in appear here.")
         }
     }
 
@@ -349,9 +425,9 @@ struct DemoWindow: View {
         if let header = try? decodeProtectedHeader(token), let payload = decodeUnverifiedJWTPayload(token) {
             text += "\n\nHeader:\n\(header.jsonString(pretty: true))\n\nPayload (decoded for display; validated by the library):\n\(payload.jsonString(pretty: true))"
         }
-        return VStack(alignment: .leading, spacing: 2) {
-            Text(title).bold()
-            Text(text).font(.caption).textSelectionEnabled()
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(title).bold().foregroundColor(Palette.field)
+            scrollBox(text)
         }
     }
 
@@ -361,12 +437,12 @@ struct DemoWindow: View {
         let me = model.signedIn
         let st = me != nil && model.caepKey == me?.key ? model.stream
             : StreamState(status: model.config?.caepEnabled == false ? .disabled : model.busy != nil ? .connecting : .waitingForUser)
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             card(me.map { "CAEP stream · \(model.label($0))" } ?? "CAEP stream") {
-                Text("status: \(st.status == .connected ? st.streamStatus ?? "enabled" : streamName(st.status))")
-                    .foregroundColor(st.status == .connected ? .green : st.status == .error ? .red : .orange)
-                ForEach(streamRows(st), id: \.0) { row in Text("\(row.0): \(row.1)").font(.callout).textSelectionEnabled() }
-                Text("Event types this stream asks for").bold()
+                Text("● \(st.status == .connected ? st.streamStatus ?? "enabled" : streamName(st.status))").bold()
+                    .foregroundColor(st.status == .connected ? Palette.ok : st.status == .error ? Palette.bad : Palette.warn)
+                ForEach(streamRows(st), id: \.0) { row in field(row.0, row.1) }
+                Text("Event types this stream asks for").bold().foregroundColor(Palette.field)
                 ForEach(CAEP.all, id: \.self) { uri in
                     Toggle(eventName(uri), isOn: Binding(
                         get: { model.selectedEvents.contains(uri) },
@@ -378,27 +454,32 @@ struct DemoWindow: View {
                     Button("Request verification event") { run { await model.requestVerification() } }.disabled(st.status != .connected || !st.write)
                     Button("Reconnect stream") { run { await model.reconnect() } }.disabled(me == nil)
                 }
-                if !st.write { Text("Updating the subscription and verification need ssf.manage.").font(.caption).foregroundColor(.gray) }
-                if let error = st.error { Text(error).foregroundColor(.red).textSelectionEnabled() }
+                if !st.write { note("Updating the subscription and verification need ssf.manage.") }
+                if let error = st.error { banner(error, .red) }
             }
             card("Event log") {
                 HStack {
-                    Text(model.stream.status == .connected ? "● polling" : "").foregroundColor(.green)
+                    Text(model.stream.status == .connected ? "● polling" : "○ not polling").bold()
+                        .foregroundColor(model.stream.status == .connected ? Palette.ok : Palette.muted)
                     Button("Clear") { model.clearLog(); tick += 1 }
                 }
                 let entries = model.activeLog
                 if entries.isEmpty {
-                    Text("No CAEP events yet. Sign in, then trigger an event at your identity provider (for example, revoke your session).")
-                        .foregroundColor(.gray)
+                    note("No CAEP events yet. Sign in, then trigger an event at your identity provider (for example, revoke your session).")
                 }
                 ForEach(entries, id: \.id) { e in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(e.name)   \(e.at.formatted(date: .omitted, time: .standard))").bold()
-                        Text(e.action)
-                        if let subject = e.subject { Text("subject: \(subject)").font(.caption).textSelectionEnabled() }
-                        if let payload = e.payload { Text("payload: \(payload)").font(.caption).textSelectionEnabled() }
-                        Divider()
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(e.name).bold().foregroundColor(Palette.titleText)
+                            Spacer()
+                            Text(e.at.formatted(date: .omitted, time: .standard)).foregroundColor(Palette.muted)
+                        }
+                        field("action", e.action)
+                        if let subject = e.subject { Text("subject").bold().foregroundColor(Palette.field); scrollBox(subject, height: 90) }
+                        if let payload = e.payload { Text("payload").bold().foregroundColor(Palette.field); scrollBox(payload, height: 110) }
                     }
+                    .padding(8)
+                    .boxed(fill: Palette.code, radius: 6)
                 }
             }
         }
