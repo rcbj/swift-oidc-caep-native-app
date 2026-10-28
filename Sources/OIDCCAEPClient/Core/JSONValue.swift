@@ -115,5 +115,6 @@ extension JSONValue {
 extension Dictionary where Key == String, Value == JSONValue {
     /// Compact JSON text for the object, with keys sorted.
     public func jsonString(pretty: Bool = false) -> String { JSONValue.object(self).jsonString(pretty: pretty) }
-    func string(_ key: String) -> String? { self[key]?.stringValue }
+    /// The member `key` when it is a string.
+    public func string(_ key: String) -> String? { self[key]?.stringValue }
 }
