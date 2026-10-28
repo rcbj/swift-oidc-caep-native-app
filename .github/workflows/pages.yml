@@ -79,8 +79,14 @@ jobs:
       - name: Build the documentation archive
         run: |
           set -euo pipefail
+          # Xcode names the package's schemes itself: the library's own, or the package-wide
+          # "<package>-Package" one. Use whichever it lists.
+          xcodebuild -list -json > /tmp/schemes.json
+          cat /tmp/schemes.json
+          scheme="$(python3 -c 'import json; s=json.load(open("/tmp/schemes.json"))["workspace"]["schemes"]; print(next((x for x in s if x == "OIDCCAEPClient"), next((x for x in s if x.endswith("-Package")), s[0])))')"
+          echo "Building the documentation of scheme ${scheme}"
           xcodebuild docbuild \
-            -scheme OIDCCAEPClient \
+            -scheme "${scheme}" \
             -destination 'generic/platform=macOS' \
             -derivedDataPath .build/docc
 
