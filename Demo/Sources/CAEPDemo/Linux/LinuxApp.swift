@@ -77,6 +77,8 @@ struct DemoWindow: View {
     @State var tab = "identity"
     @State var started = false
     @State var tokenView = "signIn"
+    /// Per token ("access", "id"): "encoded" or "decoded".
+    @State var tokenFormats: [String: String] = [:]
 
     var model: DemoModel { Shared.model }
 
@@ -412,23 +414,52 @@ struct DemoWindow: View {
         let ts: TokenSet? = tokenView == "current" ? model.currentTokens
             : (model.signInTokens?.key == model.signedIn?.key ? model.signInTokens?.tokenSet : nil)
         if let ts {
-            tokenText("Access token (\(ts.tokenType))", ts.accessToken)
-            if let id = ts.idToken { tokenText("ID token", id) }
-            if let rt = ts.refreshToken { tokenText("Refresh token", rt) }
+            tokenSection("access", "Access token (\(ts.tokenType))", ts.accessToken)
+            if let id = ts.idToken { tokenSection("id", "ID token", id) }
+            if let rt = ts.refreshToken { tokenSection("refresh", "Refresh token", rt) }
         } else {
             note(tokenView == "current" ? "No tokens until someone is signed in." : "The tokens from this session's last sign-in appear here.")
         }
     }
 
-    private func tokenText(_ title: String, _ token: String) -> some View {
-        var text = token
-        if let header = try? decodeProtectedHeader(token), let payload = decodeUnverifiedJWTPayload(token) {
-            text += "\n\nHeader:\n\(header.jsonString(pretty: true))\n\nPayload (decoded for display; validated by the library):\n\(payload.jsonString(pretty: true))"
+    /// One token, in its own bordered box. A JWT gets two tabs: the encoded token as received, and its header
+    /// and payload decoded. Anything else (a refresh token, an opaque access token) is shown as it is.
+    @ViewBuilder
+    private func tokenSection(_ kind: String, _ title: String, _ token: String) -> some View {
+        let header = try? decodeProtectedHeader(token)
+        let payload = decodeUnverifiedJWTPayload(token)
+        let format = tokenFormats[kind] ?? "encoded"
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text(title).bold().foregroundColor(Palette.titleText)
+                Spacer()
+                if header != nil, payload != nil {
+                    Toggle("Encoded JWT", isOn: formatBinding(kind, "encoded")).toggleStyle(.button)
+                    Toggle("Decoded JWT (Header + Payload)", isOn: formatBinding(kind, "decoded")).toggleStyle(.button)
+                }
+            }
+            if let header, let payload {
+                if format == "decoded" {
+                    Text("Header").bold().foregroundColor(Palette.field)
+                    scrollBox(header.jsonString(pretty: true), height: 110)
+                    Text("Payload").bold().foregroundColor(Palette.field)
+                    scrollBox(payload.jsonString(pretty: true), height: 220)
+                    note("Decoded for display. The library validated the signature and claims when the token was issued.")
+                } else {
+                    scrollBox(token, height: 120)
+                }
+            } else {
+                scrollBox(token, height: 60)
+                note(kind == "refresh" ? "An opaque token: there is nothing to decode." : "Not a JWT: there is nothing to decode.")
+            }
         }
-        return VStack(alignment: .leading, spacing: 4) {
-            Text(title).bold().foregroundColor(Palette.field)
-            scrollBox(text)
-        }
+        .padding(8)
+        .boxed(fill: Palette.code, radius: 6)
+    }
+
+    private func formatBinding(_ kind: String, _ format: String) -> Binding<Bool> {
+        Binding(get: { (tokenFormats[kind] ?? "encoded") == format },
+                set: { if $0 { tokenFormats[kind] = format } })
     }
 
     // MARK: - CAEP events tab
