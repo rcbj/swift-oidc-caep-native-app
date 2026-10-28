@@ -219,7 +219,7 @@ struct TokensCard: View {
             if let ts {
                 TokenView(title: "Access token (\(ts.tokenType))", token: ts.accessToken)
                 if let id = ts.idToken { TokenView(title: "ID token", token: id) }
-                if let rt = ts.refreshToken { TokenView(title: "Refresh token", token: rt) }
+                if let rt = ts.refreshToken { TokenView(title: "Refresh token", token: rt, opaqueNote: "An opaque token: there is nothing to decode.") }
             } else {
                 Text(which == "current" ? "No tokens until someone is signed in." : "The tokens from this session's last sign-in appear here.")
                     .font(.callout).foregroundStyle(.secondary)
@@ -228,27 +228,52 @@ struct TokensCard: View {
     }
 }
 
+/// One token. A JWT gets two tabs: the encoded token as received, and its header and payload decoded.
 struct TokenView: View {
     let title: String
     let token: String
+    var opaqueNote = "Not a JWT: there is nothing to decode."
+    @State private var format = "encoded"
 
     var body: some View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: 6) {
-                Text(token).font(.caption.monospaced()).textSelection(.enabled).lineLimit(4)
                 if let header = try? decodeProtectedHeader(token), let payload = decodeUnverifiedJWTPayload(token) {
-                    Text("Header").font(.caption.bold())
-                    Text(header.jsonString(pretty: true)).font(.caption.monospaced()).textSelection(.enabled)
-                    Text("Payload (decoded for display; validated by the library)").font(.caption.bold())
-                    Text(payload.jsonString(pretty: true)).font(.caption.monospaced()).textSelection(.enabled)
+                    Picker("Format", selection: $format) {
+                        Text("Encoded JWT").tag("encoded")
+                        Text("Decoded JWT (Header + Payload)").tag("decoded")
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    if format == "decoded" {
+                        Text("Header").font(.caption.bold())
+                        codeBox(header.jsonString(pretty: true))
+                        Text("Payload").font(.caption.bold())
+                        codeBox(payload.jsonString(pretty: true))
+                        Text("Decoded for display. The library validated the signature and claims when the token was issued.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        codeBox(token)
+                    }
                 } else {
-                    Text("Opaque token.").font(.caption).foregroundStyle(.secondary)
+                    codeBox(token)
+                    Text(opaqueNote).font(.caption).foregroundStyle(.secondary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } label: {
             Text(title).font(.callout.bold())
         }
+    }
+
+    private func codeBox(_ text: String) -> some View {
+        ScrollView {
+            Text(text).font(.caption.monospaced()).textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(6)
+        }
+        .frame(maxHeight: 200)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
     }
 }
 #endif
