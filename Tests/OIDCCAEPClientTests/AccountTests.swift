@@ -197,6 +197,15 @@ final class AccountManagerTests: XCTestCase {
         XCTAssertEqual(v7, [alice.key])
     }
 
+    func testTheCallersContextIsKept() async throws {
+        let op = StubOP()
+        let accounts = try await makeAccounts(op)
+        let request = try await accounts.signIn(AuthorizationRequestOptions(context: ["screen": "settings"]))
+        let result = try await accounts.client.completeAuthorization(callbackURL: try await op.authorize(request.url))
+        XCTAssertEqual(result.context?["screen"], "settings")
+        XCTAssertEqual(result.context?["intent"], "sign-in")
+    }
+
     func testTooManyAccounts() async throws {
         let op = StubOP()
         let accounts = try await makeAccounts(op) { $0.maxAccounts = 1 }

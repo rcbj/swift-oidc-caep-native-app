@@ -36,7 +36,8 @@ public struct OIDCClientOptions: Sendable {
     /// A PUBLIC client (`token_endpoint_auth_method` none). There is no client secret.
     public var clientID: String
     /// Where the provider returns the authorization response. For a native app (RFC 8252): a private-use
-    /// scheme such as `com.example.app:/callback`, or loopback `http://127.0.0.1:port/…`.
+    /// scheme such as `com.example.app:/callback`, or loopback `http://127.0.0.1:port/…` (which needs an
+    /// app-supplied ``WebAuthenticator`` listening on that port; ``SystemWebAuthenticator`` cannot receive it).
     public var redirectURI: URL?
     public var postLogoutRedirectURI: URL?
     /// Default `openid profile email`, plus `offline_access` when the provider supports it.

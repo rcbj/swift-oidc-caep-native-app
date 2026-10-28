@@ -8,7 +8,7 @@ import PackageDescription
 
 let package = Package(
     name: "swift-oidc-caep-native-app",
-    platforms: [.macOS(.v13), .iOS(.v16)],
+    platforms: [.macOS(.v13)],
     products: [
         .library(name: "OIDCCAEPClient", targets: ["OIDCCAEPClient"]),
     ],

@@ -71,7 +71,7 @@ public actor KeychainTokenStore: TokenStore {
     ///   - accessGroup: A Keychain access group shared with other apps of the same team.
     ///   - useDataProtectionKeychain: Use the data protection keychain (needs a signed app with a
     ///     `keychain-access-groups` entitlement on macOS). Default: the login keychain.
-    public init(service: String = "oidc-caep-client.tokens", accessGroup: String? = nil, useDataProtectionKeychain: Bool = false) {
+    public init(service: String = defaultKeychainService("tokens"), accessGroup: String? = nil, useDataProtectionKeychain: Bool = false) {
         items = KeychainItems(service: service, accessGroup: accessGroup, useDataProtectionKeychain: useDataProtectionKeychain)
     }
 
@@ -87,7 +87,7 @@ public actor KeychainKeyStore: DPoPKeyStore {
     private let items: KeychainItems
     private let account: String
 
-    public init(service: String = "oidc-caep-client.dpop", account: String = "dpop-key", accessGroup: String? = nil, useDataProtectionKeychain: Bool = false) {
+    public init(service: String = defaultKeychainService("dpop"), account: String = "dpop-key", accessGroup: String? = nil, useDataProtectionKeychain: Bool = false) {
         items = KeychainItems(service: service, accessGroup: accessGroup, useDataProtectionKeychain: useDataProtectionKeychain)
         self.account = account
     }

@@ -30,15 +30,13 @@ extension OIDCClient {
         return try await completeAuthorization(callbackURL: callback)
     }
 
-    /// RP-Initiated Logout through the system browser, checking the `state` it returns with. Returns false
-    /// when the provider has no end_session_endpoint. Needs a post-logout redirect URI, so that the browser
-    /// window closes when the provider is done.
+    /// RP-Initiated Logout through the system browser, checking the `state` it returns with. Returns false,
+    /// without opening the browser, when there is nothing to complete: the provider has no end_session_endpoint,
+    /// or the request has no post-logout redirect URI (the browser window could not close by itself).
     @discardableResult
     public func endSession(using authenticator: any WebAuthenticator, request: EndSessionRequest?) async throws -> Bool {
-        guard let request else { return false }
-        guard let redirect = options.postLogoutRedirectURI else {
-            throw OIDCError.usage("postLogoutRedirectURI is required to complete a logout in the system browser")
-        }
+        guard let request,
+              let redirect = Self.responseParameters(request.url).get("post_logout_redirect_uri").flatMap(URL.init(string:)) else { return false }
         let callback = try await authenticator.authenticate(url: request.url, callback: redirect)
         try await completeEndSession(callbackURL: callback)
         return true
