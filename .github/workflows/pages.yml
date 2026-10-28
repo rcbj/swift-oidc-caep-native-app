@@ -99,6 +99,7 @@ jobs:
             exit 1
           fi
           rm -rf _site_api
+          mkdir -p _site_api
           "$(xcrun --find docc)" process-archive transform-for-static-hosting "$archive" \
             --hosting-base-path swift-oidc-caep-native-app/api \
             --output-path _site_api/api
