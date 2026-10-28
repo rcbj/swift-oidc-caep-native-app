@@ -43,7 +43,7 @@ Everything else is the same code on both platforms:
 - the SSF receiver and every CAEP handler;
 - the demo's event policies.
 
-The library's 51 tests run on Linux in CI and on macOS.
+The library's tests run on Linux and on macOS in CI.
 
 ## Signing in
 

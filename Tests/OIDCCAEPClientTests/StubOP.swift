@@ -43,6 +43,8 @@ actor StubOP: HTTPTransport {
     var refreshIDToken = true
     var userinfoSub: String?
     var tokenDelay: UInt64 = 0
+    /// Like iya-sts's ssf.maxStreams: a create past it is refused with 403 access_denied.
+    var maxStreams = 25
 
     // What happened.
     private(set) var tokenRequests = 0
@@ -143,6 +145,8 @@ actor StubOP: HTTPTransport {
     }
 
     var queuedCount: Int { queued.count }
+    var streamCount: Int { streams.count }
+    func stream(_ id: String) -> JSONObject? { streams[id] }
 
     // MARK: The browser's part
 
@@ -247,6 +251,7 @@ actor StubOP: HTTPTransport {
             return try json(.object(reg), 201)
         case ("POST", "/ssf/streams"):
             guard try authorizedGrant(request) != nil else { return try oauthError("invalid_token", 401) }
+            if streams.count >= maxStreams { return try oauthError("access_denied", 403) }
             let id = "stream-\(streams.count + 1)"
             var s = body
             s["stream_id"] = .string(id)

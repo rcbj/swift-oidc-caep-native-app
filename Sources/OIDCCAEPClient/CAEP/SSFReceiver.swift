@@ -326,9 +326,14 @@ public actor SSFReceiver {
         return m
     }
 
-    /// Discovers the transmitter, creates (or reuses) a stream, and starts polling. If the transmitter already
-    /// has a stream for this receiver (HTTP 409), that stream is reused and re-pointed at this receiver's
-    /// delivery settings.
+    /// Discovers the transmitter, creates (or reuses) a stream, and starts polling.
+    ///
+    /// When the create is refused because the person already has streams — HTTP 409, or HTTP 403 when they
+    /// hold as many as the transmitter allows (iya-sts: `ssf.maxStreams`, 25) — one of their streams is reused
+    /// and re-pointed at this receiver's delivery settings and events: the one whose `description` is this
+    /// receiver's, else the first. With none to reuse, the refusal is rethrown. An app that lost its stored
+    /// stream id (a reinstall, cleared data, a new device) so keeps working instead of creating streams until
+    /// the limit.
     ///
     /// With `catchUp`, the SETs already queued on the stream are polled and dispatched before this returns,
     /// so that a session revoked while the receiver was stopped is acted on before the session is used.
@@ -340,10 +345,10 @@ public actor SSFReceiver {
         } else if metadata?["configuration_endpoint"] != nil {
             do {
                 stream = try await createStream()
-            } catch let e as OIDCError where e.status == 409 {
-                let existing = try await listStreams()
-                guard let first = existing.first else { throw e }
-                stream = first
+            } catch let e as OIDCError where e.status == 409 || e.status == 403 {
+                let existing = try await listStreams().filter { $0.string("stream_id") != nil }
+                guard let reuse = existing.first(where: { $0.string("description") == configuration.description }) ?? existing.first else { throw e }
+                stream = reuse
                 stream = try await updateStream(["delivery": deliveryRequest, "events_requested": JSONValue(configuration.eventsRequested)])
             }
         } else {

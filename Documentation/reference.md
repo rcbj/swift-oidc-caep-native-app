@@ -164,6 +164,7 @@ Every `using:` method has a form without it that returns the `AuthorizationReque
 - **Signing out one account leaves the others signed in.** Its logout request names its ID token, so the OP ends that session only. If it was the active account, the most recently added signed-in account becomes active. `signOutAll(using:)` sends one logout request that names nobody, so the OP asks which accounts to end. `signOut(using:)` signs the account out of the app even when the browser step is cancelled.
 - **Security events reach the account they are about.** `accountsForSubject(_:)` matches by `iss`/`sub`, a **verified** `email` or phone number (`email_verified` / `phone_number_verified` in the ID token), and `sid`. An SSF complex subject that names a session matches only the account holding that session; an account whose ID token has no `sid` doesn't match it. `end(_:reason:)` drops the account's cached tokens; it stays listed as `.ended`.
 - **Statuses:** `.signedIn`, `.tokensMissing` (the cached tokens expired and can't be refreshed; `resume` gets new ones while the OP session lasts), `.signedOut` and `.ended`. Past `maxAccounts` (default 10), the account that left longest ago is forgotten. If every account is signed in, a new sign-in is refused (`too_many_accounts`).
+- **Stream lifecycle.** A create refused with 409, or with 403 at the transmitter's limit (iya-sts `ssf.maxStreams`, 25), reuses one of the person's streams: the one whose `description` is this receiver's, else the first. Delete the stream on sign-out when the token holds `ssf.manage`; don't delete it when the app quits or goes to the background, and keep its id for the next launch. iya-sts removes a poll stream nobody polls after `ssf.personStreamInactivityTimeoutS` (a day by default).
 - **Streams are per person.** iya-sts gives a stream created with a person's token to that person, and sends it only events about them. So each account keeps its own stream. The app polls only its active account's stream. A dormant account's stream keeps queueing at the transmitter, and `start(catchUp: true)` in `onActivate` acts on what it queued before the account is used.
 - **Hooks and `stop()`.** A handler that calls `end(_:reason:)` runs `onLeave` and `onDeactivate` before it returns, and `SSFReceiver.stop()` waits for the poll that is running the handler. Don't await `stop()` in those hooks; start it in a `Task`. The [guide](native-app-guide.md#wire-a-receiver-to-the-active-account) shows the pattern.
 
@@ -188,7 +189,7 @@ receiver
     .onRiskLevelChange { event in /* ["current_level"], ["risk_reason"] */ }
     .onError { error, context in print(context.phase, error) }
 
-try await receiver.start()                                    // discover, create the stream, start polling
+try await receiver.start()                                    // discover, create (or reuse) the stream, start polling
 // receiver.start(catchUp: true) first acts on the SETs already queued (e.g. while the account was dormant)
 try await receiver.addSubject(Subject.issSub(account.iss, account.sub))   // events about this user only
 ```
