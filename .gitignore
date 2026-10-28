@@ -1,0 +1,14 @@
+.DS_Store
+/.build
+/Demo/.build
+/Demo/build
+/.swiftpm
+/Demo/.swiftpm
+/Package.resolved
+/Demo/Package.resolved
+/_site
+/_site_src
+/_site_api
+xcuserdata/
+DerivedData/
+node_modules/

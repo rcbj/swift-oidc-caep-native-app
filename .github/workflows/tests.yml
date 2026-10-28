@@ -1,0 +1,69 @@
+# SPDX-FileCopyrightText: 2026 Iya CyberSecurity Solutions, LLC
+# SPDX-License-Identifier: MIT
+#
+# Runs the library's test suite, and builds the library and the demo app for macOS.
+#
+#   linux   `swift test` in the official Swift container: the XCTest suite against the strict in-memory
+#           OpenID Provider and SSF transmitter in Tests/OIDCCAEPClientTests. Everything but the Apple-only
+#           pieces (ASWebAuthenticationSession, Keychain, Secure Enclave) is covered here.
+#   macos   `swift test`, then builds the library with those Apple-only pieces, and the SwiftUI demo
+#           package (Demo/) and its app bundle (Demo/scripts/build-app.sh). The demo depends on the library
+#           by path, so a change to the library's API that breaks the demo fails here.
+#
+# Nothing is published.
+name: Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request supersedes a run still going.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Library tests (Linux, Swift 6.1)
+    runs-on: ubuntu-latest
+    container: swift:6.1-noble
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Test
+        run: swift test
+
+  macos:
+    name: Library and demo (macOS)
+    runs-on: macos-15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Test the library
+        run: swift test
+
+      - name: Build the library for release
+        run: swift build -c release
+
+      - name: Build the demo app
+        run: Demo/scripts/build-app.sh
+
+      - name: Check the app bundle
+        run: |
+          set -euo pipefail
+          app=Demo/build/CAEPDemo.app
+          test -x "$app/Contents/MacOS/CAEPDemo"
+          plutil -lint "$app/Contents/Info.plist" "$app/Contents/Resources/OIDCConfiguration.plist"
+          codesign --verify --verbose "$app"
