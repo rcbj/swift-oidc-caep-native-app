@@ -19,7 +19,7 @@ public actor SecureEnclaveKeyStore: DPoPKeyStore {
     /// Whether this Mac has a Secure Enclave (Apple silicon, or a T2 chip).
     public static var isAvailable: Bool { SecureEnclave.isAvailable }
 
-    public init(service: String = "oidc-caep-client.dpop", account: String = "dpop-key-secure-enclave", accessGroup: String? = nil,
+    public init(service: String = defaultKeychainService("dpop"), account: String = "dpop-key-secure-enclave", accessGroup: String? = nil,
                 useDataProtectionKeychain: Bool = false) {
         items = KeychainItems(service: service, accessGroup: accessGroup, useDataProtectionKeychain: useDataProtectionKeychain)
         self.account = account
@@ -62,7 +62,7 @@ struct SecureEnclaveSigner: JWSSigner, @unchecked Sendable {
 }
 
 /// The best place for a DPoP key on this Mac: the Secure Enclave when it can create keys, else the Keychain.
-public func preferredDPoPKeyStore(service: String = "oidc-caep-client.dpop") async -> any DPoPKeyStore {
+public func preferredDPoPKeyStore(service: String = defaultKeychainService("dpop")) async -> any DPoPKeyStore {
     let enclave = SecureEnclaveKeyStore(service: service)
     if SecureEnclaveKeyStore.isAvailable {
         if (try? await enclave.load(alg: "ES256")) != nil { return enclave }

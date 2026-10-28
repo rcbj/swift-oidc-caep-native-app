@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2026 Iya CyberSecurity Solutions, LLC
+# SPDX-License-Identifier: MIT
+#
+# The left-hand navigation, drawn by _includes/sidebar.html on every page.
+# `url` is the page's built address: `foo.md` is served as `/foo.html`.
+- section: Start here
+  items:
+    - { title: Overview, url: / }
+    - { title: Building a native macOS app, url: /native-app-guide.html }
+    - { title: API reference, url: /reference.html }
+    - { title: API reference (DocC), url: /api/documentation/oidccaepclient/ }
+    - { title: Running the demo, url: /demo.html }
+    - { title: Development, url: /development.html }
+
+- section: Source
+  items:
+    - { title: GitHub repository, url: "https://github.com/rcbj/swift-oidc-caep-native-app" }
+    - { title: Demo app, url: "https://github.com/rcbj/swift-oidc-caep-native-app/tree/main/Demo" }
+    - { title: JavaScript library (oidc-caep-client), url: "https://rcbj.github.io/oidc-caep-client/" }

@@ -239,7 +239,7 @@ public actor AccountManager {
     /// account picker; with one, it answers as that account.
     public func signIn(_ opts: AuthorizationRequestOptions = .init()) async throws -> AuthorizationRequest {
         var o = opts
-        o.context = ["intent": "sign-in"]
+        o.context = Self.context(opts.context, ["intent": "sign-in"])
         return try await client.createAuthorizationRequest(o)
     }
 
@@ -247,7 +247,7 @@ public actor AccountManager {
     public func chooseAccount(_ opts: AuthorizationRequestOptions = .init()) async throws -> AuthorizationRequest {
         var o = opts
         o.prompt = "select_account"
-        o.context = ["intent": "choose"]
+        o.context = Self.context(opts.context, ["intent": "choose"])
         return try await client.createAuthorizationRequest(o)
     }
 
@@ -255,7 +255,7 @@ public actor AccountManager {
     public func addAccount(_ opts: AuthorizationRequestOptions = .init()) async throws -> AuthorizationRequest {
         var o = opts
         o.prompt = "login"
-        o.context = ["intent": "add"]
+        o.context = Self.context(opts.context, ["intent": "add"])
         return try await client.createAuthorizationRequest(o)
     }
 
@@ -283,7 +283,7 @@ public actor AccountManager {
         if o.loginHint == nil { o.loginHint = options.loginHint(a) }
         if o.idTokenHint == nil { o.idTokenHint = cached?.idToken }
         o.expectedSub = a.sub
-        o.context = ["intent": .string(intent), "key": .string(key)]
+        o.context = Self.context(opts.context, ["intent": .string(intent), "key": .string(key)])
         return try await client.createAuthorizationRequest(o)
     }
 
@@ -457,6 +457,17 @@ public actor AccountManager {
     // MARK: Internals
 
     private var activeStoreKey: String { "active:\(options.storeKey)" }
+
+    /// The request's context: the manager's `intent` (and `key`), added to an object the caller passed, or
+    /// kept beside any other value as `app`.
+    private static func context(_ given: JSONValue?, _ ours: JSONObject) -> JSONValue {
+        guard let given else { return .object(ours) }
+        if var object = given.objectValue {
+            object.merge(ours) { _, mine in mine }
+            return .object(object)
+        }
+        return .object(ours.merging(["app": given]) { a, _ in a })
+    }
 
     private func mustGet(_ key: String) throws -> Account {
         guard let a = accounts[key] else { throw OIDCError(kind: .general, "No account \(key)", code: "no_account") }

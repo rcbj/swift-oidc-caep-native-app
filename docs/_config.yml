@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2026 Iya CyberSecurity Solutions, LLC
+# SPDX-License-Identifier: MIT
+#
+# Jekyll configuration for the swift-oidc-caep-native-app documentation site,
+# laid out like oidc-caep-client's (and iya-sts's before it): the `minima`
+# theme GitHub Pages ships, with a sidebar drawn from _data/navigation.yml.
+#
+# ../.github/workflows/pages.yml builds it. This directory holds only the site's
+# frame and its own pages. The guide and the reference are the repository's
+# own files (Documentation/native-app-guide.md and Documentation/reference.md),
+# copied in by the workflow, so each is written once and reads the same in the
+# repository and on the site. The DocC API reference is generated from the
+# source and added at /api/. Nothing here is used by `swift build`.
+title: swift-oidc-caep-native-app
+tagline: documentation
+description: >-
+  An OpenID Connect public client for native macOS apps, in Swift: PKCE, PAR,
+  DPoP with a Secure Enclave key, tokens cached in the Keychain, several
+  accounts per app, and a Shared Signals receiver with one handler per CAEP
+  event.
+theme: minima
+show_excerpts: false
+
+# The site is served under the repository name on github.io. Internal links are
+# plain relative paths (`native-app-guide.md`), which work on the site and in
+# the repository alike; the workflow passes the real base URL from
+# configure-pages.
+baseurl: "/swift-oidc-caep-native-app"
+
+# GitHub Pages wraps a page with no `layout:` in `default` and turns a link to
+# `foo.md` into `foo.html`. Both are restated so a local `jekyll build` does the
+# same as the published site.
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+plugins:
+  - jekyll-relative-links

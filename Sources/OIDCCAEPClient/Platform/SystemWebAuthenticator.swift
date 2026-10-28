@@ -99,3 +99,12 @@ private final class AnchorProvider: NSObject, ASWebAuthenticationPresentationCon
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor { anchor }
 }
 #endif
+
+#if canImport(AuthenticationServices)
+extension OIDCAppConfiguration {
+    /// A ``SystemWebAuthenticator`` with this configuration's `PrefersEphemeralWebBrowserSession`.
+    public func makeAuthenticator() -> SystemWebAuthenticator {
+        SystemWebAuthenticator(prefersEphemeralWebBrowserSession: prefersEphemeralWebBrowserSession)
+    }
+}
+#endif

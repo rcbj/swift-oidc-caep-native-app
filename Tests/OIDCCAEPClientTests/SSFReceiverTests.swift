@@ -106,6 +106,25 @@ final class SSFReceiverTests: XCTestCase {
         XCTAssertEqual(v5, 1)
     }
 
+    func testAHandlerCanStopItsOwnReceiver() async throws {
+        let op = StubOP()
+        let (receiver, _) = try await setUp(op)
+        let jti = try await op.queueSET(type: CAEP.sessionRevoked)
+        // As an app does when a signal ends the account: the handler stops (and forgets) the receiver.
+        receiver.onSessionRevoked { _ in await receiver.stop() }
+        let started = Task { try await receiver.start(catchUp: true) }
+        let finished = await withTaskGroup(of: Bool.self) { group in
+            group.addTask { _ = try? await started.value; return true }
+            group.addTask { try? await Task.sleep(nanoseconds: 5_000_000_000); return false }
+            let first = await group.next()!
+            group.cancelAll()
+            return first
+        }
+        XCTAssertTrue(finished, "stop() inside a handler must not wait for the poll running that handler")
+        let acks = await op.acks
+        XCTAssertTrue(acks.contains(jti), "the handled SET is still acknowledged")
+    }
+
     func testPollEndpointMustBeAtTheTransmitter() async throws {
         let op = StubOP()
         let (receiver, _) = try await setUp(op)

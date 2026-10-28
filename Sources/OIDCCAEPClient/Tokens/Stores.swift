@@ -30,12 +30,18 @@ extension TokenStore {
 
 /// Where tokens are cached unless an app says otherwise: the platform's secure storage when it has one
 /// (the Keychain, ``KeychainTokenStore``, on macOS and iOS), and memory (``MemoryTokenStore``) otherwise.
-public func defaultTokenStore(service: String = "oidc-caep-client.tokens") -> any TokenStore {
+public func defaultTokenStore(service: String = defaultKeychainService("tokens")) -> any TokenStore {
     #if canImport(Security)
     return KeychainTokenStore(service: service)
     #else
     return MemoryTokenStore()
     #endif
+}
+
+/// A Keychain service name of this app's own: `<bundle id>.oidc-<purpose>` (or `oidc-caep-client.<purpose>`
+/// for a binary without a bundle id), so two apps using the library never share items.
+public func defaultKeychainService(_ purpose: String) -> String {
+    Bundle.main.bundleIdentifier.map { "\($0).oidc-\(purpose)" } ?? "oidc-caep-client.\(purpose)"
 }
 
 /// Tokens in memory only: nothing persists, so a relaunch means signing in again (or resuming silently

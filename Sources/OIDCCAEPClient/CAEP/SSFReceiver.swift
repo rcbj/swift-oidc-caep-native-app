@@ -224,6 +224,10 @@ public actor SSFReceiver {
     private var pendingAcks: [String] = []
     private var pendingErrs: [String: JSONValue] = [:]
     private var attempts: [String: Int] = [:]
+    /// Handlers are running (a poll is dispatching SETs).
+    private var dispatchDepth = 0
+    /// stop() was called from inside a handler: the poll finishing now sends the last acknowledgements.
+    private var flushWhenPollEnds = false
 
     public struct PollResult: Sendable {
         public let received: Int
@@ -346,7 +350,9 @@ public actor SSFReceiver {
             throw OIDCError.ssf("Transmitter has no configuration_endpoint and no streamID was supplied")
         }
         var more = catchUp
-        while more { more = try await poll().moreAvailable }
+        // A handler may end the account and delete the stream while catching up: then there is nothing to poll.
+        while more, stream != nil { more = try await poll().moreAvailable }
+        guard stream != nil else { return [:] }
         polling = true
         pollNow()
         return stream ?? [:]
@@ -358,6 +364,12 @@ public actor SSFReceiver {
         loopTask?.cancel()
         loopTask = nil
         // A poll still running may finish handling SETs; their acknowledgements go in the flush below.
+        // Called from inside a handler (which runs within a poll), waiting for that poll would never end: the
+        // poll sends the last acknowledgements when it finishes instead.
+        if dispatchDepth > 0, pollInFlight != nil {
+            flushWhenPollEnds = true
+            return
+        }
         if let running = pollInFlight { _ = try? await running.value }
         await flushAcks()
         if deleteStream, stream?.string("stream_id") != nil {
@@ -570,7 +582,14 @@ public actor SSFReceiver {
                 let ia = decodeUnverifiedJWTPayload(a.1)?["iat"]?.doubleValue ?? 0, ib = decodeUnverifiedJWTPayload(b.1)?["iat"]?.doubleValue ?? 0
                 return ia == ib ? a.0 < b.0 : ia < ib
             }
-        for (jti, token) in sets { await receivePolled(jti, token) }
+        for (jti, token) in sets {
+            guard polling || !flushWhenPollEnds else { break }
+            await receivePolled(jti, token)
+        }
+        if flushWhenPollEnds {
+            flushWhenPollEnds = false
+            await flushAcks()
+        }
         return PollResult(received: sets.count, moreAvailable: result?["moreAvailable"]?.boolValue == true)
     }
 
@@ -684,6 +703,8 @@ public actor SSFReceiver {
 
     /// False when a handler threw.
     private func dispatchAll(_ events: [SecurityEvent]) async -> Bool {
+        dispatchDepth += 1
+        defer { dispatchDepth -= 1 }
         var ok = true
         for evt in events { ok = await dispatch(evt) && ok }
         return ok

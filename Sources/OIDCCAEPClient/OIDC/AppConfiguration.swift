@@ -140,9 +140,22 @@ public struct OIDCAppConfiguration: Sendable, Equatable {
                           dpop: dpop ? DPoPOptions(keyStore: dpopKeyStore) : nil, transport: transport)
     }
 
-    /// Discovers the provider and creates a client.
-    public func makeClient(dpopKeyStore: any DPoPKeyStore = MemoryKeyStore(), transport: any HTTPTransport = URLSessionTransport()) async throws -> OIDCClient {
-        var options = clientOptions(dpopKeyStore: dpopKeyStore, transport: transport)
+    /// Discovers the provider and creates a client. The DPoP key is kept where `dpopKeyStore` says; by default
+    /// in the platform's secure storage when it has one (``preferredDPoPKeyStore(service:)``: the Secure Enclave,
+    /// else the Keychain), so that tokens cached across launches stay usable, and in memory otherwise.
+    ///
+    /// `ACRValues`, `SSFTransmitterIssuer` and `CAEPEnabled` are the app's to apply (to its requests and its
+    /// ``SSFReceiver``); `PrefersEphemeralWebBrowserSession` is applied by `makeAuthenticator()`.
+    public func makeClient(dpopKeyStore: (any DPoPKeyStore)? = nil, transport: any HTTPTransport = URLSessionTransport()) async throws -> OIDCClient {
+        var keyStore: any DPoPKeyStore = MemoryKeyStore()
+        if let dpopKeyStore {
+            keyStore = dpopKeyStore
+        } else if dpop {
+            #if canImport(CryptoKit) && canImport(Security)
+            keyStore = await preferredDPoPKeyStore()
+            #endif
+        }
+        var options = clientOptions(dpopKeyStore: keyStore, transport: transport)
         if idTokenSignedResponseAlg == nil {
             // Pick an algorithm the provider uses: RS256 when offered, else the first this library verifies.
             let metadata = try await discoverOpenIDProvider(metadataURL: metadataURL, transport: transport)
