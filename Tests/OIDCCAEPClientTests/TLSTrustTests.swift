@@ -66,6 +66,27 @@ final class LoopbackWebAuthenticatorTests: XCTestCase {
         XCTAssertEqual(result.path, "/callback")
     }
 
+    func testANewSignInTakesOverThePortFromOneThatNeverCameBack() async throws {
+        let port = Int.random(in: 41_000...48_000)
+        let callback = URL(string: "http://127.0.0.1:\(port)/callback")!
+        // The first sign-in's browser never comes back (the provider showed an error page).
+        let stuck = LoopbackWebAuthenticator(timeout: 60) { _ in }
+        let first = Task { try await stuck.authenticate(url: URL(string: "https://op.example.test/authorize")!, callback: callback) }
+        try await Task.sleep(nanoseconds: 300_000_000)
+        // The second one binds the same port and completes.
+        let retry = LoopbackWebAuthenticator(timeout: 10) { _ in
+            Task { _ = try await URLSessionTransport().send(HTTPRequest(url: URL(string: "http://127.0.0.1:\(port)/callback?code=again")!), timeout: 5) }
+        }
+        let result = try await retry.authenticate(url: URL(string: "https://op.example.test/authorize")!, callback: callback)
+        XCTAssertEqual(OIDCClient.responseParameters(result).get("code"), "again")
+        do {
+            _ = try await first.value
+            XCTFail("the abandoned sign-in should end as cancelled")
+        } catch let e as OIDCError {
+            XCTAssertTrue(e.isUserCancellation, e.message)
+        }
+    }
+
     func testRefusesANonLoopbackRedirect() async {
         let auth = LoopbackWebAuthenticator { _ in }
         await XCTAssertThrowsCode("invalid_argument") {

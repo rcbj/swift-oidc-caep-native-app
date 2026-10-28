@@ -93,6 +93,8 @@ export LD_LIBRARY_PATH
 # to the image's older C++ runtime is the usual way an AppImage crashes. Set
 # GSK_RENDERER=gl (or ngl) to use the GPU anyway.
 export GSK_RENDERER="${GSK_RENDERER:-cairo}"
+# The demo draws for a light theme; GTK_THEME set by the user wins.
+export GTK_THEME="${GTK_THEME:-Adwaita}"
 exec "$here/usr/bin/caep-demo" "$@"
 EOF
 chmod 755 "$appdir/AppRun"
