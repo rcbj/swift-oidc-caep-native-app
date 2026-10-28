@@ -33,16 +33,17 @@
 	<key>CAEPEnabled</key>
 	<true/>
 	<!--
-	  TLS for a provider whose certificate is issued by a private CA (a local iya-sts):
-	  list its root (or the whole chain) here, as PEM or DER files or inline PEM,
-	  relative to this file or absolute (~ allowed):
+	  Server certificate checks are OFF by default here, because the default provider is a
+	  local iya-sts whose certificate comes from its own private CA. Never ship this: anybody
+	  who can intercept the connection could impersonate the identity provider.
+	  To keep the checks on, set this to false and list the provider's root (or whole chain)
+	  instead, as PEM or DER files or inline PEM, relative to this file or absolute (~ allowed):
 	<key>TrustedCertificates</key>
 	<array>
 		<string>~/.config/caep-demo/sts-root.pem</string>
 	</array>
-	  Or, for a local test provider only, turn verification off:
+	-->
 	<key>InsecureSkipTLSVerification</key>
 	<true/>
-	-->
 </dict>
 </plist>

@@ -297,9 +297,11 @@ async function ensureTestUser(base, token, username, scopes) {
     console.log(`User ${username} already exists; its password is unchanged.`);
   } else {
     const password = process.env.CAEP_DEMO_USER_PASSWORD || '';
+    // A realm's attribute policy may require these of every person (iya-sts's default does).
+    const attributes = { cn: 'CAEP Demo User', givenName: 'CAEP', sn: 'Demo User', mail: `${username}@example.test` };
     const body = password
-      ? { username, invent: false, credential: 'password', password, passwordConfirm: password }
-      : { username, invent: false, credential: 'generate' };
+      ? { username, invent: false, attributes, credential: 'password', password, passwordConfirm: password }
+      : { username, invent: false, attributes, credential: 'generate' };
     const created = await admin(base, token, 'POST', '/users/create', body);
     if (!created.body.ok) throw new Error(`creating ${username} was refused: ${JSON.stringify(created.body).slice(0, 300)}`);
     console.log(`Created user ${username}.`);
