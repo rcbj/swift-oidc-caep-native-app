@@ -10,6 +10,7 @@
     - { title: API reference, url: /reference.html }
     - { title: API reference (DocC), url: /api/documentation/oidccaepclient/ }
     - { title: Running the demo, url: /demo.html }
+    - { title: Linux and macOS, url: /linux.html }
     - { title: Development, url: /development.html }
 
 - section: Source

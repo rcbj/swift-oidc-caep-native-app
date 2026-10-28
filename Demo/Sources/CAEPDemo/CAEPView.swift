@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Iya CyberSecurity Solutions, LLC
 // SPDX-License-Identifier: MIT
 
+// The macOS front end (SwiftUI). The Linux one is in Linux/.
+#if os(macOS)
+
 import OIDCCAEPClient
 import SwiftUI
 
@@ -116,3 +119,4 @@ struct EventLogCard: View {
         }
     }
 }
+#endif

@@ -172,6 +172,9 @@ The app's OpenID Connect settings live in a property list, the usual place for c
 | `PrefersEphemeralWebBrowserSession` | bool | no | `false` | Sign in without the browser's cookies. |
 | `SSFTransmitterIssuer` | string | no | the provider's issuer | The CAEP transmitter, when it is not the provider. |
 | `CAEPEnabled` | bool | no | `true` | Whether the app should receive CAEP events. |
+| `TrustedCertificates` | array | no | — | PEM or DER files (or inline PEM) to trust for TLS: a private CA's root, or a whole chain. Relative paths are resolved against the plist's folder. See [Linux and macOS](https://rcbj.github.io/swift-oidc-caep-native-app/linux.html#tls-trust). |
+| `TrustSystemRoots` | bool | no | `true` | Whether the system's roots still count beside `TrustedCertificates`. |
+| `InsecureSkipTLSVerification` | bool | no | `false` | Accept any TLS certificate. **Local test providers only.** |
 
 `makeClient()` applies the first nine keys. The last four are read into `OIDCAppConfiguration` for your code to use, and the examples below show where: `acrValues` in the sign-in options, `prefersEphemeralWebBrowserSession` in the `SystemWebAuthenticator`, and `ssfTransmitterIssuer` and `caepEnabled` when starting the receiver.
 

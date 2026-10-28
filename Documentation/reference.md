@@ -110,6 +110,9 @@ Without a browser step, the same flow is `createAuthorizationRequest(_:)`, which
 | `PrefersEphemeralWebBrowserSession` | bool | `false` | `makeAuthenticator()` |
 | `SSFTransmitterIssuer` | string | — (the provider's issuer) | your code: `SSFReceiverConfiguration(transmitterIssuer:)` |
 | `CAEPEnabled` | bool | `true` | your code |
+| `TrustedCertificates` | array | — | `makeTransport()`: extra trust anchors or chains (`TLSTrust`) |
+| `TrustSystemRoots` | bool | `true` | `makeTransport()` |
+| `InsecureSkipTLSVerification` | bool | `false` | `makeTransport()`: certificate verification off. Local test providers only |
 
 `makeClient(dpopKeyStore:transport:)` discovers the provider and creates the client; `clientOptions(dpopKeyStore:transport:)` returns the `OIDCClientOptions` without discovering. With no `dpopKeyStore`, `makeClient` keeps the DPoP key in secure storage (`preferredDPoPKeyStore()`: the Secure Enclave, else the Keychain; memory where neither exists). `makeAuthenticator()` returns a `SystemWebAuthenticator` with `PrefersEphemeralWebBrowserSession` applied.
 
