@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The demo's OpenID Connect settings, read by OIDCAppConfiguration.load().
+  The defaults point at iya-sts on https://localhost:8081, client oidc-caep-native-demo
+  (register it with scripts/register-iya-sts-client.mjs).
+-->
+<plist version="1.0">
+<dict>
+	<key>MetadataURL</key>
+	<string>https://localhost:8081/.well-known/openid-configuration</string>
+	<key>ClientID</key>
+	<string>oidc-caep-native-demo</string>
+	<key>Scopes</key>
+	<array>
+		<string>openid</string>
+		<string>profile</string>
+		<string>email</string>
+		<string>offline_access</string>
+		<string>ssf.read</string>
+		<string>ssf.manage</string>
+	</array>
+	<key>RedirectURI</key>
+	<string>net.rcbj.caepdemo:/callback</string>
+	<key>PostLogoutRedirectURI</key>
+	<string>net.rcbj.caepdemo:/logged-out</string>
+	<key>DPoP</key>
+	<true/>
+	<key>PAR</key>
+	<string>auto</string>
+	<key>CAEPEnabled</key>
+	<true/>
+</dict>
+</plist>
