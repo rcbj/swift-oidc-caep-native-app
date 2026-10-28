@@ -24,6 +24,7 @@ This page lists every difference, for the library and for the demo app.
 | **DPoP key** | Secure Enclave (`SecureEnclaveKeyStore`, non-extractable) when the Mac has one, else Keychain (`KeychainKeyStore`) | Memory (`MemoryKeyStore`): a new key every launch |
 | **After a restart** | Every account is still signed in | Accounts must sign in again |
 | **HTTP** | `URLSession` | `URLSession`. With `TrustedCertificates` or `InsecureSkipTLSVerification` set, the system's `curl` |
+| **Demo's TLS default** | Certificates verified | Verification **off** (`InsecureSkipTLSVerification`), for the local iya-sts |
 | **Extra trusted CAs** (`TrustedCertificates`) | Added as anchors to the URLSession trust evaluation | Written to a private CA bundle passed to `curl --cacert` |
 | **Demo user interface** | SwiftUI | GTK 4, through [SwiftCrossUI](https://github.com/stackotter/swift-cross-ui) 0.9.0 |
 | **Demo configuration file** | `OIDCConfiguration.plist` | `OIDCConfiguration-Linux.plist`, or `~/.config/caep-demo/OIDCConfiguration.plist` |
@@ -78,7 +79,9 @@ To keep tokens on Linux anyway, pass a `TokenStore` of your own to `AccountManag
 
 ## TLS trust
 
-Both platforms verify the provider's and the transmitter's certificates. The demo's default provider, a local iya-sts, uses certificates from its own private CA, which neither platform trusts. Two settings in the configuration file handle that:
+Both platforms verify the provider's and the transmitter's certificates by default. The demo's default provider, a local iya-sts, uses certificates from its own private CA, which neither platform trusts. Three settings in the configuration file handle that.
+
+**The Linux demo's built-in configuration turns the checks off** (`InsecureSkipTLSVerification` `true` in `OIDCConfiguration-Linux.plist`), so that it works against a local iya-sts with nothing to set up. Its log says so when it starts, and **Protections in effect** shows *TLS: VERIFICATION OFF*. To keep the checks on, set it to `false` and list iya-sts's root under `TrustedCertificates`, as below. The macOS demo's configuration leaves the checks on.
 
 | Key | Type | Default | |
 |---|---|---|---|
