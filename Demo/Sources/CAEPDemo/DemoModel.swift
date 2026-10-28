@@ -466,7 +466,8 @@ final class DemoModel {
             await r.setStream(["stream_id": .string(id)])
             try await r.deleteStream()
         } catch {
-            // The transmitter forgets an unused stream on its own.
+            // Left at the transmitter, which removes a poll stream nobody polls (iya-sts: after
+            // ssf.personStreamInactivityTimeoutS, a day by default).
         }
     }
 

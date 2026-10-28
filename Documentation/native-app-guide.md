@@ -495,7 +495,7 @@ Here a receiver that fails to start is reported and the account is activated any
 `start()` either opens an existing stream or creates one:
 
 - **Opening an existing stream:** pass its id as `SSFReceiverConfiguration(streamID:)`. Keep the id, for example in `UserDefaults`, to reopen the same stream later.
-- **Creating a stream:** this needs `ssf.manage`. If the transmitter already has a stream for this person (HTTP 409), that stream is reused.
+- **Creating a stream:** this needs `ssf.manage`. If the transmitter refuses the create because the person already has streams (HTTP 409, or HTTP 403 `access_denied` when they hold as many as it allows; iya-sts allows `ssf.maxStreams`, 25), one of their streams is reused and re-pointed at this receiver: the one whose `description` is this receiver's, else the first. So an app that lost its stored stream id doesn't fail at the limit.
 
 With `ssf.read` only, you can't create a stream. Find one with `listStreams()` and pass its id as `streamID`.
 
@@ -572,6 +572,12 @@ await receiver.stop(deleteStream: true)      // with ssf.manage: also remove the
 ```
 
 `stop()` sends the acknowledgements still owed. Called from inside a handler, it leaves that to the poll running the handler.
+
+**When to delete the stream, and when not:**
+
+- **Signing out or removing an account:** delete it when the token holds `ssf.manage` (`stop(deleteStream: true)`, in `onLeave` while the tokens still work); otherwise just stop polling. The demo does this.
+- **The app is quit, put in the background, or its account made dormant:** don't delete it. The transmitter keeps queueing events for it, and `start(catchUp: true)` acts on them when the app comes back. Keep the stream id (the demo uses `UserDefaults`) and pass it as `streamID` on the next launch.
+- **An app that never comes back** (killed, uninstalled) leaves its stream behind. The transmitter removes it: iya-sts deletes a person's poll stream after `ssf.personStreamInactivityTimeoutS` (a day by default) with no poll ([iya-sts#1094](https://github.com/rcbj/iya-sts/issues/1094)). Within that time, a reinstalled app that lost the id reuses the stream (see above).
 
 ## 10. Sign out
 

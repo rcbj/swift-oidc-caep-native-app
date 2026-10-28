@@ -125,6 +125,54 @@ final class SSFReceiverTests: XCTestCase {
         XCTAssertTrue(acks.contains(jti), "the handled SET is still acknowledged")
     }
 
+    func testAtTheStreamLimitTheReceiverReusesThePersonsStream() async throws {
+        let op = StubOP()
+        await op.configure { $0.maxStreams = 2 }
+        // Two streams already: one created by another app, then one created by this receiver (same description).
+        let (other, _) = try await setUp(op) { $0.description = "another app" }
+        try await other.discover()
+        try await other.createStream()
+        let (first, _) = try await setUp(op)
+        try await first.discover()
+        try await first.createStream()
+        let mine = await first.stream?.string("stream_id")
+        // This receiver lost its stream id and starts again: the create is refused with 403, and its stream reused.
+        let (again, _) = try await setUp(op) { $0.eventsRequested = [CAEP.sessionRevoked] }
+        let stream = try await again.start()
+        XCTAssertEqual(stream.string("stream_id"), mine, "the stream whose description is this receiver's is preferred")
+        let count = await op.streamCount
+        XCTAssertEqual(count, 2, "no stream was created")
+        let stored = await op.stream(mine ?? "")
+        XCTAssertEqual(stored?["events_requested"]?.stringArrayValue, [CAEP.sessionRevoked], "the reused stream is re-pointed at this receiver")
+        await again.stop()
+    }
+
+    func testAtTheLimitWithoutAMatchTheFirstStreamIsReused() async throws {
+        let op = StubOP()
+        await op.configure { $0.maxStreams = 1 }
+        let (other, _) = try await setUp(op) { $0.description = "another app" }
+        try await other.discover()
+        try await other.createStream()
+        let theirs = await other.stream?.string("stream_id")
+        let (receiver, _) = try await setUp(op)
+        let stream = try await receiver.start()
+        XCTAssertEqual(stream.string("stream_id"), theirs)
+        await receiver.stop()
+    }
+
+    func testAtTheLimitWithNothingToReuseTheRefusalIsRethrown() async throws {
+        let op = StubOP()
+        await op.configure { $0.maxStreams = 0 }
+        let (receiver, _) = try await setUp(op)
+        do {
+            try await receiver.start()
+            XCTFail("expected the 403")
+        } catch let e as OIDCError {
+            XCTAssertEqual(e.status, 403)
+            XCTAssertEqual(e.code, "access_denied")
+        }
+    }
+
     func testPollEndpointMustBeAtTheTransmitter() async throws {
         let op = StubOP()
         let (receiver, _) = try await setUp(op)
