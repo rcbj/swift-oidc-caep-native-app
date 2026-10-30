@@ -45,7 +45,7 @@ The default plist points at iya-sts on `https://localhost:8081`, client `oidc-ca
 ADMIN_API_CLIENT_SECRET=… node scripts/register-iya-sts-client.mjs
 ```
 
-[`scripts/register-iya-sts-client.mjs`](https://github.com/rcbj/swift-oidc-caep-native-app/blob/main/scripts/register-iya-sts-client.mjs) needs Node.js and nothing installed. It reads the plist, gets a management API token as `sts-management-api`, and:
+[`scripts/register-iya-sts-client.mjs`](https://github.com/rcbj/swift-oidc-caep-native-app/blob/main/scripts/register-iya-sts-client.mjs) needs Node.js and nothing installed. It reads the plist, gets a management API token as `sts-api-client` (the client iya-sts seeds for its management API), and:
 
 - creates the public client (`token_endpoint_auth_method: none`) with the plist's redirect URI and post-logout redirect URI, and the plist's scopes. A native app needs no CORS origin;
 - adds the client to `SSF_READ` and `SSF_MANAGE`, for whichever of `ssf.read` and `ssf.manage` the plist asks for (iya-sts issues each only when the application is a member of the role and the person is in its group, `ssf-read` or `ssf-manage`);
