@@ -32,7 +32,7 @@ import Foundation
 /// | `ACRValues` | string | no | Requested `acr_values` |
 /// | `PrefersEphemeralWebBrowserSession` | bool | no | No shared browser cookies at sign-in (default `false`) |
 /// | `SSFTransmitterIssuer` | string | no | CAEP transmitter, if not the provider's issuer |
-/// | `CAEPEnabled` | bool | no | Receive CAEP events (default `true`) |
+/// | `CAEPEnabled` | bool | no | Turns off CAEP and RISC when false: the receiver is not started, and `ssf.read` and `ssf.manage` are left out of the authorization request (default `true`) |
 /// | `TrustedCertificates` | array | no | PEM or DER files (or inline PEM) to trust for TLS: trust anchors or whole chains. Relative paths are resolved against the plist's folder |
 /// | `TrustSystemRoots` | bool | no | Whether the system's roots still count beside `TrustedCertificates` (default `true`) |
 /// | `InsecureSkipTLSVerification` | bool | no | Accept any TLS certificate from the provider. **Local test providers only** (default `false`) |
@@ -55,7 +55,9 @@ public struct OIDCAppConfiguration: Sendable, Equatable {
     /// Extra certificates to trust for TLS (`TrustedCertificates`, `TrustSystemRoots`).
     public var tlsTrust: TLSTrust?
 
-    /// The scope string (`openid profile email`), or nil for the client's default.
+    /// The configured scope string (`openid profile email`), or nil when `Scopes` is empty.
+    /// The authorization request uses ``clientOptions(dpopKeyStore:transport:)``, which leaves `ssf.read` and
+    /// `ssf.manage` out when `caepEnabled` is false.
     public var scope: String? { scopes.isEmpty ? nil : scopes.joined(separator: " ") }
 
     /// The name of the file ``load(bundle:resource:)`` looks for, and of the `Info.plist` key.
@@ -161,8 +163,6 @@ public struct OIDCAppConfiguration: Sendable, Equatable {
         return try TLSTrust(pemOrDER: data, includeSystemRoots: d["TrustSystemRoots"] as? Bool ?? true)
     }
 
-    /// Client options from this configuration. Pass the DPoP key store to use (e.g. ``SecureEnclaveKeyStore``);
-    /// it is ignored when `DPoP` is false.
     /// The HTTP transport this configuration calls for: certificate verification off when
     /// `InsecureSkipTLSVerification` is set, or with `TrustedCertificates` added to the trusted roots. Pass the same transport to an ``SSFReceiverConfiguration``.
     public func makeTransport() -> any HTTPTransport {
@@ -171,19 +171,35 @@ public struct OIDCAppConfiguration: Sendable, Equatable {
         return URLSessionTransport()
     }
 
+    /// Client options from this configuration. Pass the DPoP key store to use (e.g. ``SecureEnclaveKeyStore``);
+    /// it is ignored when `DPoP` is false. When `caepEnabled` is false, `ssf.read` and `ssf.manage` are left
+    /// out of `scope`. An empty list is nil, so the client uses its default (`openid profile email`, plus
+    /// `offline_access` only when the provider offers it) and does not add those scopes.
     public func clientOptions(dpopKeyStore: any DPoPKeyStore = MemoryKeyStore(), transport: (any HTTPTransport)? = nil) -> OIDCClientOptions {
         let transport = transport ?? makeTransport()
-        return OIDCClientOptions(clientID: clientID, redirectURI: redirectURI, postLogoutRedirectURI: postLogoutRedirectURI, scope: scope,
+        return OIDCClientOptions(clientID: clientID, redirectURI: redirectURI, postLogoutRedirectURI: postLogoutRedirectURI, scope: authorizationScope,
                           resource: resource, idTokenSignedResponseAlg: idTokenSignedResponseAlg ?? "RS256", par: par,
                           dpop: dpop ? DPoPOptions(keyStore: dpopKeyStore) : nil, transport: transport)
+    }
+
+    /// Scopes for the authorization request. `CAEPEnabled` false leaves `ssf.read` and `ssf.manage` out.
+    /// Nil when nothing remains, so ``OIDCClient`` applies its default and does not add the SSF scopes.
+    private var authorizationScope: String? {
+        guard caepEnabled else {
+            let kept = scopes.filter { $0 != "ssf.read" && $0 != "ssf.manage" }
+            return kept.isEmpty ? nil : kept.joined(separator: " ")
+        }
+        return scope
     }
 
     /// Discovers the provider and creates a client. The DPoP key is kept where `dpopKeyStore` says; by default
     /// in the platform's secure storage when it has one (``preferredDPoPKeyStore(service:)``: the Secure Enclave,
     /// else the Keychain), so that tokens cached across launches stay usable, and in memory otherwise.
     ///
-    /// `ACRValues`, `SSFTransmitterIssuer` and `CAEPEnabled` are the app's to apply (to its requests and its
-    /// ``SSFReceiver``); `PrefersEphemeralWebBrowserSession` is applied by `makeAuthenticator()`.
+    /// `ACRValues` and `SSFTransmitterIssuer` are the app's to apply (to its requests and its ``SSFReceiver``).
+    /// `CAEPEnabled` false leaves `ssf.read` and `ssf.manage` out of the options this builds; the app does not
+    /// start the receiver, which is what fetches SSF transmitter metadata. Sign-in does not.
+    /// `PrefersEphemeralWebBrowserSession` is applied by `makeAuthenticator()`.
     public func makeClient(dpopKeyStore: (any DPoPKeyStore)? = nil, transport: (any HTTPTransport)? = nil) async throws -> OIDCClient {
         let transport = transport ?? makeTransport()
         var keyStore: any DPoPKeyStore = MemoryKeyStore()

@@ -109,12 +109,14 @@ Without a browser step, the same flow is `createAuthorizationRequest(_:)`, which
 | `ACRValues` | string | — | your code: `AuthorizationRequestOptions(acrValues:)` |
 | `PrefersEphemeralWebBrowserSession` | bool | `false` | `makeAuthenticator()` |
 | `SSFTransmitterIssuer` | string | — (the provider's issuer) | your code: `SSFReceiverConfiguration(transmitterIssuer:)` |
-| `CAEPEnabled` | bool | `true` | your code |
+| `CAEPEnabled` | bool | `true` | `makeClient` drops `ssf.read` and `ssf.manage` when false; your code does not start the receiver |
 | `TrustedCertificates` | array | — | `makeTransport()`: extra trust anchors or chains (`TLSTrust`) |
 | `TrustSystemRoots` | bool | `true` | `makeTransport()` |
 | `InsecureSkipTLSVerification` | bool | `false` | `makeTransport()`: certificate verification off. Local test providers only |
 
 `makeClient(dpopKeyStore:transport:)` discovers the provider and creates the client; `clientOptions(dpopKeyStore:transport:)` returns the `OIDCClientOptions` without discovering. With no `dpopKeyStore`, `makeClient` keeps the DPoP key in secure storage (`preferredDPoPKeyStore()`: the Secure Enclave, else the Keychain; memory where neither exists). `makeAuthenticator()` returns a `SystemWebAuthenticator` with `PrefersEphemeralWebBrowserSession` applied.
+
+`CAEPEnabled` defaults to true. `false` turns off CAEP and RISC: the receiver is not started, and `clientOptions()` (and therefore `makeClient()`) leaves `ssf.read` and `ssf.manage` out of the authorization request, so the app can sign in at an identity provider that does not implement Shared Signals. If no scopes remain, `scope` is nil and the client uses its default (`openid profile email`, plus `offline_access` only when the provider offers it), which does not add the SSF scopes. When the flag is true or omitted, the scopes in the plist are sent unchanged. Sign-in does not fetch SSF transmitter metadata; the receiver does, and only after it is started.
 
 ### Dynamic Client Registration
 
