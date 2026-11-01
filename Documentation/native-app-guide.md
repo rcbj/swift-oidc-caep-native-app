@@ -115,6 +115,8 @@ Other redirect URIs:
 
 An app that only consumes a stream someone else created needs `ssf.read`. An app that creates its own stream, chooses its event types or adds the user as the stream's subject needs `ssf.manage`.
 
+`CAEPEnabled` defaults to true, so a plist that lists these scopes still receives events. Set it to false to turn off CAEP and RISC at an identity provider that does not implement Shared Signals: the receiver is not started, and `ssf.read` and `ssf.manage` are left out of the authorization request even when `Scopes` lists them.
+
 ### iya-sts
 
 With iya-sts, both scopes are gated by role. A person is issued `ssf.read` only while two things are true: they are in the group `ssf-read`, and your application is an **application member** of the native role `SSF_READ`. `ssf.manage` works the same way through the group `ssf-manage` and the role `SSF_MANAGE`, which does not authorize `ssf.read`, so ask for both. Every realm has these roles and groups by default. Applications have to be added to the roles; nothing adds them for you.
@@ -171,12 +173,12 @@ The app's OpenID Connect settings live in a property list, the usual place for c
 | `ACRValues` | string | no | — | `acr_values` for your sign-in requests. |
 | `PrefersEphemeralWebBrowserSession` | bool | no | `false` | Sign in without the browser's cookies. |
 | `SSFTransmitterIssuer` | string | no | the provider's issuer | The CAEP transmitter, when it is not the provider. |
-| `CAEPEnabled` | bool | no | `true` | Whether the app should receive CAEP events. |
+| `CAEPEnabled` | bool | no | `true` | Receive CAEP and RISC events. `false` turns both off: the receiver is not started, and `ssf.read` and `ssf.manage` are left out of the authorization request, so the app can sign in at an identity provider that does not implement Shared Signals. |
 | `TrustedCertificates` | array | no | — | PEM or DER files (or inline PEM) to trust for TLS: a private CA's root, or a whole chain. Relative paths are resolved against the plist's folder. See [Linux and macOS](https://rcbj.github.io/swift-oidc-caep-native-app/linux.html#tls-trust). |
 | `TrustSystemRoots` | bool | no | `true` | Whether the system's roots still count beside `TrustedCertificates`. |
 | `InsecureSkipTLSVerification` | bool | no | `false` | Accept any TLS certificate. **Local test providers only.** |
 
-`makeClient()` applies the first nine keys. The last four are read into `OIDCAppConfiguration` for your code to use, and the examples below show where: `acrValues` in the sign-in options, `prefersEphemeralWebBrowserSession` in the `SystemWebAuthenticator`, and `ssfTransmitterIssuer` and `caepEnabled` when starting the receiver.
+`makeClient()` applies the first nine keys. When `CAEPEnabled` is false it also leaves `ssf.read` and `ssf.manage` out of the scopes on the authorization request. If nothing else was listed, the client's default applies: `openid profile email`, plus `offline_access` when the provider offers it, and that default does not add the SSF scopes. Sign-in does not fetch SSF transmitter metadata; only a started receiver does, and `false` means the receiver is not started. That one flag turns off both CAEP and RISC. `ACRValues`, `PrefersEphemeralWebBrowserSession`, `SSFTransmitterIssuer` and `CAEPEnabled` are still read into `OIDCAppConfiguration` for your code, and the examples below show where: `acrValues` in the sign-in options, `prefersEphemeralWebBrowserSession` in the `SystemWebAuthenticator`, and `ssfTransmitterIssuer` and `caepEnabled` when starting the receiver.
 
 **Add the file to the app target.**
 
@@ -364,7 +366,9 @@ Make the headers again for every request: a DPoP proof is for one request only. 
 
 ### Wire a receiver to the active account
 
-Each account has its own stream at the transmitter: iya-sts gives a stream created with a person's token to that person, and sends it only events about them. So the receiver follows the active account. `AccountManager`'s three hooks are where it starts and stops:
+Each account has its own stream at the transmitter: iya-sts gives a stream created with a person's token to that person, and sends it only events about them. So the receiver follows the active account. `AccountManager`'s three hooks are where it starts and stops.
+
+`CAEPEnabled` defaults to true. Set it to false to turn off CAEP and RISC at an identity provider that does not implement Shared Signals. Do not start the receiver (the example below already checks `configuration.caepEnabled`), and `makeClient()` leaves `ssf.read` and `ssf.manage` out of the authorization request. Sign-in itself does not read `/.well-known/ssf-configuration`.
 
 - **`onActivate`** runs before an account becomes active, with access to its tokens. Start its receiver here with `catchUp: true`, so the events queued while it was dormant are acted on before the account is used.
 - **`onDeactivate`** runs when it stops being active. Stop polling; its stream keeps queueing.
