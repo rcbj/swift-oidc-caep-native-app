@@ -10,7 +10,7 @@ An OpenID Connect client library for **native macOS apps**, written in Swift. It
 - **Tokens:** caching them in the Keychain and refreshing them before they expire. Where the platform has no secure storage, they are cached in memory.
 - **DPoP keys:** generated in the Secure Enclave when the Mac has one, so the private key can never be read out. Otherwise the key is kept in the Keychain.
 - **Several accounts:** several people signed in to one app, with one active account.
-- **CAEP:** subscribing to the identity provider's Shared Signals stream, with one handler per CAEP event and a hook for your own logic.
+- **CAEP:** subscribing to the identity provider's Shared Signals stream, with one handler per CAEP event and a hook for your own logic. `CAEPEnabled` defaults to true. Set it to false to turn off CAEP and RISC: the receiver is not started, and `ssf.read` and `ssf.manage` are left out of the authorization request, so the app can sign in at an identity provider that does not implement Shared Signals.
 
 The library product is `OIDCCAEPClient`. It needs macOS 13 or later and Swift 5.9 or later, and its only dependency is Apple's [swift-crypto](https://github.com/apple/swift-crypto). It also runs on Linux desktops (GNOME, KDE): sign-in goes through the default browser and a loopback redirect, and tokens stay in memory. The demo has a GTK version, packaged as an AppImage. See [Linux and macOS](linux.md) for every difference.
 

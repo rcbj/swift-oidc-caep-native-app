@@ -34,6 +34,7 @@ The app reads [`Demo/Sources/CAEPDemo/Resources/OIDCConfiguration.plist`](https:
 | `Scopes` | `openid profile email offline_access ssf.read ssf.manage` |
 | `RedirectURI` | `net.rcbj.caepdemo:/callback` |
 | `PostLogoutRedirectURI` | `net.rcbj.caepdemo:/logged-out` |
+| `CAEPEnabled` | `true` |
 
 Edit it to point at another provider; [Building a native macOS app](native-app-guide.md#4-create-oidcconfigurationplist) lists every key. The Mac must trust the provider's TLS certificate, since both the app and the browser connect to it. For iya-sts's development certificate on `localhost:8081`, add it to the login keychain in Keychain Access and set it to **Always Trust**, or issue one from a local CA such as mkcert.
 
@@ -64,7 +65,7 @@ The secret is `ADMIN_API_CLIENT_SECRET` or `STS_ADMIN_API_CLIENT_SECRET`. Every 
 - **DPoP** binds tokens to a key in the Secure Enclave when the Mac has one, and otherwise to a key kept in the Keychain.
 - **PAR** is used whenever the provider offers it.
 - **Tokens** for every signed-in account are cached in the Keychain, so they survive a relaunch.
-- **CAEP:** the stream is created with the person's access token (with a DPoP proof) and polled from the app. With `ssf.manage`, the person is added as the stream's subject, and the stream asks for the event types picked on the **CAEP events** tab.
+- **CAEP:** the stream is created with the person's access token (with a DPoP proof) and polled from the app. With `ssf.manage`, the person is added as the stream's subject, and the stream asks for the event types picked on the **CAEP events** tab. `CAEPEnabled` defaults to true, and the shipped plists leave it true and still list `ssf.read` and `ssf.manage`, so the demo still receives events. Set it to false to turn off CAEP and RISC: the receiver is not started, and those two scopes are left out of the authorization request, so the same app can sign in at an identity provider that does not implement Shared Signals. The plist can keep listing the scopes.
 
 The window has a top bar and two tabs.
 
