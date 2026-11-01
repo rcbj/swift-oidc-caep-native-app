@@ -87,6 +87,33 @@ final class OIDCClientTests: XCTestCase {
         XCTAssertThrowsError(try OIDCAppConfiguration(dictionary: ["MetadataURL": "https://op.example.test/.well-known/openid-configuration", "RedirectURI": "a.b:/c"]))
     }
 
+    func testCAEPEnabledFalseLeavesSSFScopesOutOfTheAuthorizationRequest() throws {
+        func configuration(caepEnabled: Bool?, scopes: [String]) throws -> OIDCAppConfiguration {
+            var dictionary: [String: Any] = [
+                "MetadataURL": "https://op.example.test/.well-known/openid-configuration",
+                "ClientID": "native-demo",
+                "Scopes": scopes,
+                "RedirectURI": "net.example.app:/callback",
+            ]
+            if let caepEnabled { dictionary["CAEPEnabled"] = caepEnabled }
+            return try OIDCAppConfiguration(dictionary: dictionary)
+        }
+        let scopes = ["openid", "profile", "ssf.read", "ssf.manage"]
+        let off = try configuration(caepEnabled: false, scopes: scopes)
+        let requested = off.clientOptions().scope ?? ""
+        XCTAssertEqual(off.clientOptions().scope, "openid profile")
+        XCTAssertFalse(requested.contains("ssf.read"))
+        XCTAssertFalse(requested.contains("ssf.manage"))
+        XCTAssertTrue(requested.contains("openid"))
+
+        let defaults = try configuration(caepEnabled: nil, scopes: scopes)
+        XCTAssertTrue(defaults.caepEnabled)
+        XCTAssertEqual(defaults.clientOptions().scope, "openid profile ssf.read ssf.manage")
+        XCTAssertTrue(defaults.clientOptions().scope?.contains("ssf.read") == true)
+
+        XCTAssertNil(try configuration(caepEnabled: false, scopes: ["ssf.read", "ssf.manage"]).clientOptions().scope)
+    }
+
     // MARK: The authorization response
 
     func testStateIsSingleUse() async throws {
