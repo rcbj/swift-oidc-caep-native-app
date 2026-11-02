@@ -94,4 +94,4 @@ A release is a semantic-version tag on `main` and a GitHub Release. `publish.yml
 
 ## Changes
 
-Branch from `develop`. Open a pull request into `develop` and merge it there. The default branch is `main`, so a closing keyword on that pull request does not close the issue. Close the issue in a comment that names the `develop` commit. Then merge `develop` into `main`, and fast-forward `develop` to that same commit so both branches name one hash.
+Branch from `develop`. Open a pull request into `develop` and merge it there. The default branch is `main`, so a closing keyword on that pull request does not close the issue. Close the issue in a comment that names the `develop` commit. Then open a pull request from `develop` into `main`, merge it with a merge commit, and fast-forward `develop` to that same commit so both branches name one hash. Never push `develop` to `main` directly: `publish.yml` releases only a commit that came from a pull request merged into `main`, and a direct push also cancels the Tests run of the merge before it, so that merge is not released either.
