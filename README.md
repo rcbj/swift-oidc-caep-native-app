@@ -26,6 +26,8 @@ targets: [
 ]
 ```
 
+Versions are semantic-version tags on `main`, each with a GitHub Release, and the package is listed on the [Swift Package Index](https://swiftpackageindex.com/rcbj/swift-oidc-caep-native-app). The demo app is a separate package (`Demo/`) and is not part of the `OIDCCAEPClient` product.
+
 In Xcode: **File → Add Package Dependencies…**, enter the repository URL, and add `OIDCCAEPClient` to the app target. macOS 13 or later.
 
 Put the app's settings in `OIDCConfiguration.plist` (the provider's metadata URL, the `client_id`, the scopes and the redirect URI), then:

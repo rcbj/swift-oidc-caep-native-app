@@ -38,6 +38,18 @@ The app reads [`Demo/Sources/CAEPDemo/Resources/OIDCConfiguration.plist`](https:
 
 Edit it to point at another provider; [Building a native macOS app](native-app-guide.md#4-create-oidcconfigurationplist) lists every key. The Mac must trust the provider's TLS certificate, since both the app and the browser connect to it. For iya-sts's development certificate on `localhost:8081`, add it to the login keychain in Keychain Access and set it to **Always Trust**, or issue one from a local CA such as mkcert.
 
+The app can trust the provider's CA without the keychain instead. `OIDCConfiguration.plist` carries a commented-out `TrustedCertificates` entry. Save iya-sts's root CA:
+
+```sh
+mkdir -p ~/.config/caep-demo
+echo | openssl s_client -connect localhost:8081 -showcerts 2>/dev/null \
+  | awk '/-----BEGIN CERTIFICATE-----/{n++} n==4' | sed '/-----END CERTIFICATE-----/q' \
+  > ~/.config/caep-demo/sts-root.pem
+openssl x509 -in ~/.config/caep-demo/sts-root.pem -noout -subject   # subject=CN = sts Root CA, O = sts
+```
+
+A file holding the whole chain (leaf, intermediates, root) works too. Uncomment the entry and rebuild, or point `OIDC_CONFIG` at an edited copy of the plist. Every listed file must exist, or the configuration does not load. `TrustSystemRoots` `false` trusts only the listed certificates. The system browser used for sign-in still trusts through the keychain.
+
 ## Register the client on iya-sts
 
 The default plist points at iya-sts on `https://localhost:8081`, client `oidc-caep-native-demo`. Register it in the default realm, from the repository root:

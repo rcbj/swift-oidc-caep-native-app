@@ -76,7 +76,7 @@ The register script needs `ADMIN_API_CLIENT_SECRET` and runs once. The demo's se
 
 ## Releases
 
-A release is a semantic-version tag on `main` (`0.1.0`, `0.1.1`, and so on). This repository does not publish to npm. `pages.yml` deploys the site and the DocC archive from `main`. DocC needs macOS so the Apple-only symbols are included.
+A release is a semantic-version tag on `main` and a GitHub Release. `publish.yml` creates both after the Tests workflow succeeds on `main` for a commit that came from a merged pull request; a direct push does not release. `VERSION` holds M.N and the tag is M.N.0, as `install/appimage.sh` and `Demo/scripts/build-app.sh` already assume. A tag that already exists stays; the next release is a new minor number in `VERSION`. The Swift Package Index lists the package from those tags and builds the DocC documentation as `.spi.yml` says. Nothing is uploaded to a registry, and the demo (`Demo/`) is not part of the published product. This repository does not publish to npm. `pages.yml` deploys the site and the DocC archive from `main`. DocC needs macOS so the Apple-only symbols are included.
 
 ## Changes
 
