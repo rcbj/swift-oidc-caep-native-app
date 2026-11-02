@@ -30,5 +30,16 @@
 	<string>auto</string>
 	<key>CAEPEnabled</key>
 	<true/>
+	<!--
+	  The Mac trusts the provider's TLS certificate through the login keychain by default
+	  (docs/demo.md). To trust a private CA here instead, uncomment this and list its root,
+	  or its whole chain (leaf, intermediates, root), as PEM or DER files or inline PEM,
+	  relative to this file or absolute (~ allowed). Every file listed must exist, or the
+	  configuration does not load. The sign-in browser still uses the keychain.
+	<key>TrustedCertificates</key>
+	<array>
+		<string>~/.config/caep-demo/sts-root.pem</string>
+	</array>
+	-->
 </dict>
 </plist>
