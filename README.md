@@ -67,7 +67,10 @@ install/appimage-docker.sh                 # builds dist/CAEP_Demo-0.1.0-x86_64.
 ```sh
 swift test                                                                    # macOS
 docker run --rm -v "$PWD":/pkg -w /pkg swift:6.1-noble swift test             # Linux
+python3 scripts/live_iya_sts.py                                               # live, against a fresh iya-sts
 ```
+
+The live run needs Docker and the host's `python3` only. It starts iya-sts's `main` branch in memory mode, registers a client with it, and runs `LiveIyaSTSTests` in the Swift container: a sign-in through the library (only the browser is replaced, by an HTTP walk of iya-sts's sign-in screens), then a credential-change and a session-revoked signal through the library's SSF receiver. The library trusts iya-sts through `TrustedCertificates`, never by turning verification off. `IYA_STS_IMAGE` starts the container from an image already built; `LIVE_STS_PORT` (default 18506) and `LIVE_DEMO_PORT` (default 18606) choose the ports. The Nightly workflow runs the unit suite and the live run every day at 06:23 UTC.
 
 Branch from `develop`. See [Development](docs/development.md).
 

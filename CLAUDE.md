@@ -17,6 +17,7 @@ Documentation: <https://rcbj.github.io/swift-oidc-caep-native-app/>. The license
 | `Demo` | A second package. SwiftUI on macOS, GTK 4 on Linux. `swift run CAEPDemo`. |
 | `install` | The Linux AppImage (`install/appimage.sh`, or `install/appimage-docker.sh` without Swift installed). |
 | `scripts/register-iya-sts-client.mjs` | Registers the public client on iya-sts. The Node `redirects.mjs` port recipe from the other libraries does not apply here. |
+| `scripts/live_iya_sts.py` | The live test's driver: a fresh iya-sts, the registration, and `LiveIyaSTSTests` in the Swift container. |
 | `Documentation` | The integration guide and the API reference. |
 | `docs` | The GitHub Pages site. |
 
@@ -64,6 +65,19 @@ docker run --rm -v "$PWD":/pkg -w /pkg swift:6.1-noble swift test
 The Linux run covers the suite except the Apple-only types (`KeychainTokenStore`, `KeychainKeyStore`, `SecureEnclaveKeyStore`, `SystemWebAuthenticator`), which compile only where Security, CryptoKit, and AuthenticationServices exist. The demo is a separate build: `cd Demo && swift build`.
 
 `.github/workflows/tests.yml` runs `swift test` in the Swift 6.1 container and, on macOS, `swift test` plus a release build of the library and `Demo/scripts/build-app.sh`. `appimage.yml` builds the Linux AppImage.
+
+### Live test against iya-sts
+
+```sh
+python3 scripts/live_iya_sts.py
+IYA_STS_IMAGE=iya-sts-live:main LIVE_STS_PORT=18506 LIVE_DEMO_PORT=18606 python3 scripts/live_iya_sts.py
+```
+
+`Tests/OIDCCAEPClientTests/LiveIyaSTSTests.swift` is skipped unless `IYA_STS_LIVE_PLIST` is set. `scripts/live_iya_sts.py` (host `python3`, standard library only) sets it up: it starts a fresh iya-sts (`main`, memory mode, clustering off, no workers; `IYA_STS_URL` uses a running one, `IYA_STS_IMAGE` an image already built, otherwise it clones and builds `main`), writes an `OIDCConfiguration.plist` from the Linux demo's with a loopback redirect on `LIVE_DEMO_PORT`, registers it with `register-iya-sts-client.mjs` in a Node container, and runs `swift test --filter LiveIyaSTSTests` in `swift:6.1-noble` (curl added, since the library's Linux TLS trust uses it) on the host network, with the checkout mounted read-only and copied inside.
+
+The test uses the library end to end: `OIDCAppConfiguration`, `OIDCClient` (PAR, PKCE, DPoP), `AccountManager`, and `LoopbackWebAuthenticator`, whose `openBrowser` is the one thing replaced: `IyaSTSBrowser` walks iya-sts's `/authn` screens over HTTP (the shell for the cookie, the `/authn-api` view for the CSRF token, the password, consent, an optional MFA step skipped) and then requests the loopback redirect, which the library's listener receives. Then the library's `SSFReceiver` polls the account's stream, the test emits credential-change and session-revoked with `POST /admin-api/caep/emit`, and requires the account signed in after the first and ended after the second. Trust is `TrustedCertificates` naming the self-signed root of the chain from `GET /tls/server-certificate`, with `TrustSystemRoots` false; `InsecureSkipTLSVerification` is never set. Ports: 18506 for iya-sts, 18606 for the loopback redirect; 3000, 8081 and 18481–18495 are refused. Containers: `iya-sts-live-swift-oidc-caep-native-app` and `swift-oidc-caep-native-app-live-demo`, removed at the end. Use a fresh iya-sts each run.
+
+`.github/workflows/nightly.yml` runs the unit suite and the live run every day at 06:23 UTC (and on demand).
 
 ## Demo
 
