@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 Iya CyberSecurity Solutions, LLC
+# SPDX-License-Identifier: MIT
+#
+# Swift Package Index settings. The DocC documentation is built on macOS, so
+# the Apple-only types (Keychain, Secure Enclave, the system web
+# authenticator) are included.
+version: 1
+builder:
+  configs:
+    - platform: macos-spm
+      documentation_targets: [OIDCCAEPClient]
