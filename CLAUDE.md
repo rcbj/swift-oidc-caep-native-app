@@ -64,7 +64,7 @@ docker run --rm -v "$PWD":/pkg -w /pkg swift:6.1-noble swift test
 
 The Linux run covers the suite except the Apple-only types (`KeychainTokenStore`, `KeychainKeyStore`, `SecureEnclaveKeyStore`, `SystemWebAuthenticator`), which compile only where Security, CryptoKit, and AuthenticationServices exist. The demo is a separate build: `cd Demo && swift build`.
 
-`.github/workflows/tests.yml` runs `swift test` in the Swift 6.1 container and, on macOS, `swift test` plus a release build of the library and `Demo/scripts/build-app.sh`. `appimage.yml` builds the Linux AppImage.
+`.github/workflows/tests.yml` runs `swift test` in the Swift 6.1 container and, on macOS, `swift test` plus a debug build of the demo app bundle (`CONFIGURATION=debug Demo/scripts/build-app.sh`), with `.build` and `Demo/.build` cached between runs. `appimage.yml` builds the Linux AppImage.
 
 ### Live test against iya-sts
 

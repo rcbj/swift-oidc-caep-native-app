@@ -6,9 +6,10 @@
 #   linux   `swift test` in the official Swift container: the XCTest suite against the strict in-memory
 #           OpenID Provider and SSF transmitter in Tests/OIDCCAEPClientTests. Everything but the Apple-only
 #           pieces (ASWebAuthenticationSession, Keychain, Secure Enclave) is covered here.
-#   macos   `swift test`, then builds the library with those Apple-only pieces, and the SwiftUI demo
-#           package (Demo/) and its app bundle (Demo/scripts/build-app.sh). The demo depends on the library
-#           by path, so a change to the library's API that breaks the demo fails here.
+#   macos   `swift test`, then a debug build of the SwiftUI demo package (Demo/) and its app bundle
+#           (Demo/scripts/build-app.sh), which also compiles the library with the Apple-only pieces. The
+#           demo depends on the library by path, so a change to the library's API that breaks the demo
+#           fails here. Both build directories are cached between runs.
 #
 # Nothing is published.
 name: Tests
@@ -47,18 +48,33 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Toolchain
+        id: toolchain
         run: |
           swift --version
           xcodebuild -version
+          echo "key=$( (swift --version 2>&1; xcodebuild -version) | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      # Both packages' build directories, so swift-crypto (BoringSSL, by far the
+      # largest compile) is not built from scratch on every run. The key changes
+      # with the toolchain and either manifest; a source change only rebuilds the
+      # modules it touches. Package.resolved is not committed, so it is not in the key.
+      - name: Restore the build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            Demo/.build
+          key: spm-macos-${{ steps.toolchain.outputs.key }}-${{ hashFiles('Package.swift', 'Demo/Package.swift') }}
+          restore-keys: |
+            spm-macos-${{ steps.toolchain.outputs.key }}-
 
       - name: Test the library
         run: swift test
 
-      - name: Build the library for release
-        run: swift build -c release
-
+      # Debug: CI proves the demo builds and bundles; nobody runs this binary.
+      # This also compiles the library a second way, with the Apple-only pieces.
       - name: Build the demo app
-        run: Demo/scripts/build-app.sh
+        run: CONFIGURATION=debug Demo/scripts/build-app.sh
 
       - name: Check the app bundle
         run: |

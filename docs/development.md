@@ -49,7 +49,7 @@ open "$(find .build/docc -name OIDCCAEPClient.doccarchive -type d | head -n 1)" 
 
 | Workflow | Runs on | Does |
 |---|---|---|
-| [`tests.yml`](https://github.com/rcbj/swift-oidc-caep-native-app/blob/main/.github/workflows/tests.yml) | every push to `main` and `develop`, and pull requests | `swift test` on Linux (Swift 6.1 container); on macOS `swift test`, a release build of the library, and the demo app bundle (`Demo/scripts/build-app.sh`) |
+| [`tests.yml`](https://github.com/rcbj/swift-oidc-caep-native-app/blob/main/.github/workflows/tests.yml) | every push to `main` and `develop`, and pull requests | `swift test` on Linux (Swift 6.1 container); on macOS `swift test` and a debug build of the demo app bundle (`Demo/scripts/build-app.sh`), with the build directories cached |
 | [`appimage.yml`](https://github.com/rcbj/swift-oidc-caep-native-app/blob/main/.github/workflows/appimage.yml) | every push and pull request | builds the Linux demo's AppImage (`install/appimage.sh`) in the Swift 6.1 Ubuntu 22.04 image and uploads it as the `caep-demo-x86_64` artifact |
 | [`pages.yml`](https://github.com/rcbj/swift-oidc-caep-native-app/blob/main/.github/workflows/pages.yml) | pushes to `main` that change the docs or the library's source, and on demand | builds this site, generates the DocC reference on a macOS runner, and deploys both to GitHub Pages |
 
