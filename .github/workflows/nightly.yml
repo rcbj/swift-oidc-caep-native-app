@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 Iya CyberSecurity Solutions, LLC
+# SPDX-License-Identifier: MIT
+#
+# The whole suite once a day: the XCTest suite in the Swift 6.1 container, then the live half
+# (scripts/live_iya_sts.py), which builds iya-sts from its main branch, starts it in memory mode, and
+# runs LiveIyaSTSTests against it in the same container image.
+name: Nightly
+
+on:
+  schedule:
+    # 06:23 UTC is this library's slot in the 06:00–07:58 window.
+    - cron: '23 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit suite
+        run: docker run --rm -v "$PWD":/pkg -w /pkg swift:6.1-noble swift test
+      - name: Live iya-sts
+        run: python3 scripts/live_iya_sts.py
