@@ -209,7 +209,7 @@ jobs:
           echo "api: $(find _site/api -name '*.html' | wc -l) page(s)."
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
 
   deploy:
     needs: build
