@@ -15,7 +15,7 @@ let package = Package(
     dependencies: [
         // Apple's swift-crypto: CryptoKit's API on every platform (it re-exports CryptoKit on Apple
         // platforms), plus _CryptoExtras for RSA signature verification.
-        .package(url: "https://github.com/apple/swift-crypto.git", "3.8.0"..<"5.0.0"),
+        .package(url: "https://github.com/apple/swift-crypto.git", "3.8.0"..<"6.0.0"),
     ],
     targets: [
         .target(
