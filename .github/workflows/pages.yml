@@ -190,7 +190,7 @@ jobs:
       # The DocC pages from the api job. Copied in after Jekyll, which would otherwise process
       # or skip them; Jekyll's _site belongs to root, hence sudo.
       - name: Download the API reference
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: docc-api
           path: .
