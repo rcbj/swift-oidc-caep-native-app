@@ -28,7 +28,7 @@ jobs:
       - name: Build the AppImage
         run: sh ./install/appimage.sh
       - name: Upload the AppImage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: caep-demo-x86_64
           path: dist/*.AppImage

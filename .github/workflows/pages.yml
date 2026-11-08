@@ -116,7 +116,7 @@ jobs:
         run: tar -czf docc-api.tar.gz _site_api
 
       - name: Upload the API reference
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: docc-api
           path: docc-api.tar.gz
@@ -132,7 +132,7 @@ jobs:
 
       - name: Configure Pages
         id: pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
         with:
           enablement: true
 
@@ -190,7 +190,7 @@ jobs:
       # The DocC pages from the api job. Copied in after Jekyll, which would otherwise process
       # or skip them; Jekyll's _site belongs to root, hence sudo.
       - name: Download the API reference
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: docc-api
           path: .
@@ -209,7 +209,7 @@ jobs:
           echo "api: $(find _site/api -name '*.html' | wc -l) page(s)."
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
 
   deploy:
     needs: build
@@ -220,4 +220,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
