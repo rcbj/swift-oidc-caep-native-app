@@ -18,7 +18,7 @@ let package = Package(
     platforms: [.macOS(.v14)],
     dependencies: [
         .package(name: "swift-oidc-caep-native-app", path: ".."),
-        .package(url: "https://github.com/stackotter/swift-cross-ui.git", exact: "0.9.0"),
+        .package(url: "https://github.com/stackotter/swift-cross-ui.git", exact: "0.10.0"),
     ],
     targets: [
         .executableTarget(
