@@ -22,7 +22,7 @@ jobs:
     # carries the toolchain.
     container: swift:6.1-jammy
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install build tools
         run: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y libgtk-4-dev curl ca-certificates file binutils
       - name: Build the AppImage
