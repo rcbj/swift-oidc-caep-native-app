@@ -59,7 +59,7 @@ jobs:
       # with the toolchain and either manifest; a source change only rebuilds the
       # modules it touches. Package.resolved is not committed, so it is not in the key.
       - name: Restore the build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             .build
