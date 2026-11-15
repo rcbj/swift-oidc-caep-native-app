@@ -19,7 +19,7 @@ jobs:
   suite:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Unit suite
         run: docker run --rm -v "$PWD":/pkg -w /pkg swift:6.1-noble swift test
       - name: Live iya-sts
